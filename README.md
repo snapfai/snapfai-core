@@ -1,108 +1,95 @@
-# SnapFAI
+# SnapFAI MVP
 
-![SnapFAI Logo](public/logo.png)
+SnapFAI is a chat-based DeFi interaction layer that simplifies token swapping on Ethereum and Arbitrum.
 
-## What is SnapFAI?
+## Features
 
-SnapFAI makes DeFi accessible to everyone through a conversational AI interface. Instead of navigating complex protocols and interfaces, users can simply type what they want to do in natural language, and SnapFAI handles the rest.
+- **Chat-based Interface**: Simply type what you want to do in natural language
+- **Smart Swaps**: "Swap 100 USDT to ETH on Arbitrum"
+- **Best Prices**: Automatically finds the best rates across multiple protocols (0x and Odos)
+- **Cross-chain Support**: Ethereum and Arbitrum networks
 
-## Why SnapFAI?
+## Tech Stack
 
-- **Simplicity** - No more complex DeFi interfaces or steep learning curves
-- **Intelligence** - AI-powered recommendations to help you make optimal financial decisions
-- **Efficiency** - Get the best rates and opportunities across the entire DeFi ecosystem
-- **Accessibility** - Making decentralized finance accessible to everyone, regardless of technical experience
-
-## How It Works
-
-1. **Ask SnapFAI** - Simply type what you want to do in natural language
-2. **Get Smart Recommendations** - SnapFAI analyzes multiple protocols to find the best options
-3. **Execute Seamlessly** - Confirm and execute transactions with minimal effort
-
-## Key Features
-
-- **Cross-Chain Interactions** - Seamlessly connect and transact across multiple blockchains with integrations like LayerZero and deBridge
-- **Borrow & Earn** - Maximize your DeFi returns with smart borrowing and earning tools across Aave, Compound, SparkFi, and more
-- **Smart Swaps** - Get the best rates with swap aggregators like 0x, 1inch, and ParaSwap, all through a magical chat interface
-- **Automation & Triggers** - Set up time-based, gas-based, and price-based triggers to automate your DeFi activities
-- **Real-Time Insights** - Make smarter decisions with actionable insights from price tracking and sentiment analysis
-- **Multi-Source Data** - Stay informed with comprehensive data aggregated from social channels, documentation, and development sources
-
-## Benefits for Different Users
-
-### For DeFi Beginners
-- Removes the complexity of DeFi interfaces
-- Provides guidance on best practices
-- Explains concepts in plain language
-
-### For DeFi Enthusiasts
-- Saves time by automating repetitive tasks
-- Provides better visibility across multiple protocols
-- Helps discover new opportunities
-
-### For DeFi Developers
-- API access for integration into custom applications
-- Webhook support for building automated workflows
-- Comprehensive documentation and support
+- **Frontend**: Next.js, React, TailwindCSS
+- **AI**: OpenAI GPT-4
+- **DeFi**: 0x API, Odos API
+- **Authentication**: Web3Modal for wallet connections
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm or yarn
+- Node.js 18+ installed
+- An OpenAI API key
+- Optional: 0x API key and Odos API key for real price quotes (mocked in MVP)
 
 ### Installation
 
 1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/snapfai.git
-cd snapfai
-```
+   ```bash
+   git clone https://github.com/yourusername/snapfai.git
+   cd snapfai
+   ```
 
 2. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-```
+   ```bash
+   npm install
+   ```
 
-3. Start the development server:
-```bash
-npm run dev
-# or
-yarn dev
-```
+3. Create an `.env.local` file in the root directory with the following content:
+   ```
+   # OpenAI API Key
+   OPENAI_API_KEY=your_openai_api_key
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+   # DeFi API Keys (optional for MVP)
+   ZERO_X_API_KEY=your_0x_api_key
+   ODOS_API_KEY=your_odos_api_key
+   INFURA_API_KEY=your_infura_api_key
 
-## Project Structure
+   # Web3 Configuration (optional for MVP)
+   NEXT_PUBLIC_INFURA_ID=your_infura_id
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
+   ```
 
-```
-snapfai/
-├── app/              # Next.js app directory
-│   ├── page.tsx      # Home page component
-├── components/       # Reusable UI components
-├── public/           # Static assets
-└── styles/           # Global styles
-```
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-## Customization
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The project uses Tailwind CSS for styling with custom theme colors:
+## Usage
 
-- snapfai-black
-- snapfai-amber
-- snapfai-sand
-- snapfai-lightyellow
-- snapfai-silver
-- snapfai-white
-- snapfai-navy
+1. Open the app in your browser
+2. Connect your wallet (optional for seeing the full flow)
+3. Type a natural language request in the chat, for example:
+   - "Swap 100 USDT to ETH on Arbitrum"
+   - "Swap 1 ETH to USDT"
+   - "What's the current price of ETH?"
+
+## Development Notes
+
+### MVP Limitations
+
+- The MVP uses simulated prices and executions for demonstration purposes
+- Real wallet integration and transaction signing are not fully implemented
+- Price triggers are simulated (no real price feed integration)
+
+### Folder Structure
+
+- `/app`: Next.js application and API routes
+- `/components`: React components
+- `/server`: Backend server for production deployment (not included in MVP)
+
+## Future Enhancements
+
+- Real-time price feeds via Pyth Network
+- Enhanced wallet integration
+- Twitter sentiment analysis
+- Support for more DEX aggregators
+- Adding lending/borrowing protocols
 
 ## License
 
-[MIT License](LICENSE)
-
-## Contact
-
-For questions or support, please reach out at support@snapfai.com 
+[MIT](LICENSE)

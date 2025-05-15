@@ -7,37 +7,6 @@ import { ThemeToggle } from "@/components/theme-toggle"
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Navigation */}
-      <header className="border-b dark:border-gray-800">
-        <div className="container flex items-center justify-between py-4">
-          <div className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
-            <span className="text-xl font-bold dark:text-white">SnapFAI</span>
-            <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">AI-Powered</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <Link href="#features" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
-              Features
-            </Link>
-            <Link href="#how-it-works" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
-              How It Works
-            </Link>
-            <Link href="#" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
-              Docs
-            </Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" className="hidden md:flex dark:text-gray-200 dark:border-gray-700">
-              Log In
-            </Button>
-            <Button size="sm" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
-              Get Started
-            </Button>
-          </div>
-        </div>
-      </header>
-
       <main className="flex-1">
         {/* Hero Section */}
         <section className="py-20 md:py-28 relative overflow-hidden">

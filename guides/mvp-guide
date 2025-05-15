@@ -1,0 +1,397 @@
+# SnapFAI MVP Tech Stack Guide
+
+This is the tech stack guide to build the Minimum Viable Product (MVP) for **SnapFAI.com**, a chat-based DeFi interaction layer that simplifies token swapping on Ethereum and Arbitrum. The MVP uses **OpenAI GPT-4** for conversational AI and function calling, **Model Context Protocol (MCP)** for data integration, and focuses on swaps, price triggers, and Twitter sentiment analysis. Lending and borrowing are deferred to Phase 2.
+
+## Project Overview
+
+**SnapFAI** enables users to swap tokens or query crypto projects and news via a chat interface. The MVP prioritizes:
+
+- **Chat UX**: Users type prompts (e.g., “Swap 100 USDT to ETH on Arbitrum” or “What’s the sentiment on Uniswap?”).
+- **Swap Process**:
+  1. User requests a swap (e.g., “Swap A number of X token to Y token on Z chain using P protocol”).
+  2. GPT-4 parses the amount (A), tokens (X, Y), chain (Z), and protocol (P, optional).
+  3. If P is unspecified, AI selects the best protocol (0x or Odos) based on price.
+  4. AI confirms: “Swap 100 USDT to \~0.05 ETH on Arbitrum via 0x. Proceed? (Yes/No)”
+  5. On confirmation, AI executes the swap via function calling.
+- **Price Triggers**: Execute swaps based on Pyth price feeds (e.g., “Swap when WBTC &lt; $70,000”).
+- **Twitter Sentiment**: Analyze sentiment for DeFi projects.
+
+The stack is **smart** (optimal swaps), **easy-to-use** (chat-driven), and **magical** (seamless UX), with the slogan “Doing DeFi Like a Snap!”.
+
+## Swap Workflow
+
+1. **User Prompt**: “Swap 100 USDT to ETH on Arbitrum” or “Swap 0xA0b... to 0xC02... on Ethereum”.
+2. **AI Parsing**:
+   - GPT-4 extracts X (tokenIn, e.g., USDT), Y (tokenOut, e.g., ETH), Z (chain, e.g., Arbitrum), P (protocol, optional).
+   - If incomplete, AI prompts: “Please specify the chain.”
+3. **Protocol Selection**:
+   - If P is unspecified, AI queries 0x and Odos via MCP servers for the best price.
+   - Example: Compares USDT→ETH quotes on Arbitrum.
+4. **Confirmation**:
+   - AI responds: “Confirm: 100 USDT to \~0.05 ETH on Arbitrum via 0x. Proceed? (Yes/No)”
+   - Stores pending swap in Redis.
+5. **Execution**:
+   - On “Yes”, AI calls the selected protocol’s API (0x or Odos) via GPT-4 function calling.
+   - User signs the transaction via Web3Modal (MetaMask).
+   - AI confirms: “Swap completed! 0.05 ETH received.”
+
+## Tech Stack Components
+
+### 1. Generative AI (GenAI)
+
+- **Purpose**: Parses user prompts, confirms swap details, and generates responses.
+- **Technology**: **OpenAI GPT-4 API**.
+  - **Why**: Well-documented APIs for chat completions and function calling; no fine-tuning needed.
+  - **Setup**:
+    - Register for an OpenAI API key.
+    - Use the `openai` Python client to call GPT-4.
+    - Resolve token symbols to addresses using a tokenlist (e.g., Uniswap’s tokenlist).
+  - **Dependencies**: `openai`.
+  - **Code Example**:
+
+    ```python
+    from openai import OpenAI
+    
+    client = OpenAI(api_key="your_api_key")
+    def parse_prompt(prompt):
+      response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        functions=[
+          {
+            "name": "parse_swap",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "tokenIn": {"type": "string"},
+                "tokenOut": {"type": "string"},
+                "amount": {"type": "number"},
+                "chain": {"type": "string"},
+                "protocol": {"type": "string"}
+              }
+            }
+          }
+        ],
+        function_call="auto"
+      )
+      if response.choices[0].message.function_call:
+        return response.choices[0].message.function_call.arguments
+      return {"error": "Invalid prompt"}
+    ```
+
+### 2. Function Calling
+
+- **Purpose**: Executes swaps by calling 0x or Odos APIs based on user confirmation.
+- **Technology**: **OpenAI GPT-4 Function Calling**, **Web3Modal**.
+  - **GPT-4 Function Calling**: Maps parsed prompts to swap functions.
+  - **Web3Modal**: Connects to MetaMask for transaction signing.
+  - **Setup**:
+    - Define a function schema for swaps: `{ "name": "execute_swap", "parameters": { "tokenIn", "tokenOut", "amount", "chain", "protocol" } }`.
+    - Use GPT-4 to trigger API calls to 0x or Odos for swap execution.
+    - Integrate Web3Modal for wallet authentication and transaction signing.
+  - **Dependencies**: `openai`, `@web3modal/ethereum`.
+  - **Code Example**:
+
+    ```javascript
+    import { Web3Modal } from '@web3modal/ethereum';
+    import axios from 'axios';
+    
+    const web3Modal = new Web3Modal({ /* config */ });
+    
+    async function executeSwap({ tokenIn, tokenOut, amount, chain, protocol }) {
+      const provider = await web3Modal.connect();
+      const signer = provider.getSigner();
+      // Fetch swap quote from selected protocol (0x or Odos)
+      const response = await axios.get(`https://api.${protocol}.org/swap/v1/quote?buyToken=${tokenOut}&sellToken=${tokenIn}&sellAmount=${amount}&chain=${chain}`);
+      const quote = response.data;
+      // Execute swap transaction (API-specific logic)
+      const tx = await signer.sendTransaction({
+        to: quote.to,
+        data: quote.data,
+        value: quote.value
+      });
+      await tx.wait();
+      return "Swap completed!";
+    }
+    ```
+
+### 3. Model Context Protocol (MCP)
+
+- **Purpose**: Connects to 0x, Odos, and Twitter for swap quotes and sentiment analysis; stores user context (e.g., chain preference).
+- **Technology**: **MCP Client (FastAPI)**, **MCP Servers (0x, Odos, Twitter)**, **Redis**.
+  - **MCP Client**: Queries MCP servers for swap quotes and sentiment data.
+  - **MCP Servers**: Build servers for 0x, Odos (swap quotes), and Twitter (sentiment) using Anthropic’s templates.
+  - **Redis**: Stores session context (e.g., `{ "userId": "0x123", "chain": "Arbitrum", "pendingSwap": { ... } }`).
+  - **Setup**:
+    - Deploy MCP servers on **AWS ECS** using Anthropic’s templates for Twitter and custom servers for 0x/Odos.
+    - Configure FastAPI as an MCP client to query these servers.
+    - Use Redis for context management with a 24-hour TTL.
+  - **Dependencies**: `fastapi`, `redis`, `requests`.
+  - **Code Example**:
+
+    ```python
+    from fastapi import FastAPI
+    import redis
+    import requests
+    
+    app = FastAPI()
+    redis_client = redis.Redis(host="localhost", port=6379)
+    
+    @app.post("/swap/confirm")
+    async def confirm_swap(data: dict):
+      context = redis_client.get("user:0x123")  # Fetch user context
+      # Query MCP servers for 0x and Odos quotes
+      quotes = {
+        "0x": requests.get("http://0x-mcp:8000/quote?tokenIn=USDT&tokenOut=ETH").json(),
+        "odos": requests.get("http://odos-mcp:8000/quote?tokenIn=USDT&tokenOut=ETH").json()
+      }
+      best_protocol = max(quotes, key=lambda p: quotes[p]["price"])
+      redis_client.set("pendingSwap", data)  # Store pending swap for confirmation
+      return {"protocol": best_protocol, "confirm": "Proceed with swap? (Yes/No)"}
+    ```
+
+### 4. DeFi Integrations
+
+- **Purpose**: Enables swap execution and price triggers.
+- **Technologies**:
+  - **0x API**, **Odos API**: For swap quotes and execution on Ethereum/Arbitrum.
+  - **Pyth API**: For real-time price feeds to trigger swaps.
+  - **Infura**: Ethereum/Arbitrum RPC provider for transaction broadcasting.
+  - **Setup**:
+    - Register API keys for 0x, Odos, and Pyth.
+    - Use Infura for node access (Sepolia testnet for MVP).
+    - Query 0x/Odos for swap quotes; use Pyth for price-based triggers.
+  - **Dependencies**: `axios`, `dotenv`.
+  - **Code Example**:
+
+    ```javascript
+    const axios = require("axios");
+    async function getBestSwapQuote(tokenIn, tokenOut, amount, chain) {
+      const quotes = await Promise.all([
+        axios.get(`https://api.0x.org/swap/v1/quote?buyToken=${tokenOut}&sellToken=${tokenIn}&sellAmount=${amount}&chain=${chain}`),
+        axios.get(`https://api.odos.xyz/quote?inputToken=${tokenIn}&outputToken=${tokenOut}&amount=${amount}&chain=${chain}`)
+      ]);
+      return quotes.reduce((best, q) => q.data.price > best.price ? q.data : best, { price: 0 });
+    }
+    ```
+
+### 5. Automation & Triggers
+
+- **Purpose**: Executes swaps based on price conditions (e.g., “Swap when WBTC &lt; $70,000”).
+- **Technology**: **Celery**, **Web3.py**, **Pyth API**.
+  - **Celery**: Schedules periodic price checks.
+  - **Web3.py**: Monitors blockchain events (if needed).
+  - **Pyth API**: Provides real-time price feeds for trigger conditions.
+  - **Setup**:
+    - Deploy Celery with Redis as the message broker.
+    - Use Web3.py for blockchain interactions (optional).
+    - Trigger swaps via 0x/Odos APIs when price conditions are met.
+  - **Dependencies**: `celery`, `web3`, `pythclient`.
+  - **Code Example**:
+
+    ```python
+    from celery import Celery
+    from pythclient import PythClient
+    
+    app = Celery("tasks", broker="redis://localhost:6379")
+    pyth = PythClient()
+    
+    @app.task
+    def check_price_trigger(user_id, token_in, token_out, amount, price_threshold):
+      price = pyth.get_price(f"{token_out}/USD")
+      if price < price_threshold:
+        # Execute swap via 0x/Odos API
+        requests.post("http://localhost:8000/swap/execute", json={"userId": user_id, "tokenIn": token_in, "tokenOut": token_out, "amount": amount})
+    ```
+
+### 6. Data Aggregation & Sentiment Analysis
+
+- **Purpose**: Provides Twitter sentiment for DeFi projects.
+- **Technology**: **Twitter API**, **VADER (NLTK)**, **PostgreSQL**.
+  - **Twitter API**: Fetches tweets for sentiment analysis.
+  - **VADER**: Analyzes sentiment (positive/negative).
+  - **PostgreSQL**: Stores historical sentiment data.
+  - **Setup**:
+    - Register for Twitter API (v2) access.
+    - Use VADER for sentiment scoring.
+    - Store results in PostgreSQL for trend analysis.
+  - **Dependencies**: `tweepy`, `nltk`, `psycopg2`.
+  - **Code Example**:
+
+    ```python
+    import tweepy
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
+    
+    client = tweepy.Client(bearer_token="your_token")
+    sia = SentimentIntensityAnalyzer()
+    
+    def get_sentiment(query):
+      tweets = client.search_recent_tweets(query=query, max_results=10)
+      scores = [sia.polarity_scores(tweet.text)["compound"] for tweet in tweets.data]
+      avg_score = sum(scores) / len(scores)
+      return {"sentiment": "positive" if avg_score > 0 else "negative", "score": avg_score}
+    ```
+
+### 7. Frontend
+
+- **Purpose**: Delivers the chat-based user experience.
+- **Technology**: **React**, **Tailwind CSS**, **WebSocket**.
+  - **React**: Builds the dynamic chat interface.
+  - **Tailwind CSS**: Provides styling for a clean, magical design.
+  - **WebSocket**: Enables real-time communication with the backend.
+  - **Setup**:
+    - Create a React app with a chat component.
+    - Use Tailwind CSS for responsive styling.
+    - Connect to the FastAPI backend via WebSocket for live updates.
+  - **Dependencies**: `react`, `tailwindcss`, `socket.io-client`.
+  - **Code Example**:
+
+    ```javascript
+    import React, { useState, useEffect } from "react";
+    import io from "socket.io-client";
+    
+    const socket = io("http://localhost:8000");
+    
+    function Chat() {
+      const [message, setMessage] = useState("");
+      const [responses, setResponses] = useState([]);
+    
+      useEffect(() => {
+        socket.on("response", (data) => {
+          setResponses((prev) => [...prev, data]);
+        });
+      }, []);
+    
+      const sendMessage = () => {
+        socket.emit("message", { text: message, userId: "0x123" });
+        setMessage("");
+      };
+    
+      return (
+        <div className="p-4 bg-gray-100 min-h-screen">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            className="border p-2 w-full mb-2"
+            placeholder="E.g., Swap 100 USDT to ETH"
+          />
+          <button onClick={sendMessage} className="bg-blue-500 text-white p-2 rounded">
+            Send
+          </button>
+          <div className="mt-4">
+            {responses.map((res, i) => (
+              <p key={i} className="bg-white p-2 mb-2 rounded">{res.text}</p>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    export default Chat;
+    ```
+
+### 8. Backend & Infrastructure
+
+- **Purpose**: Manages API requests, MCP connections, and data storage.
+- **Technology**: **FastAPI**, **AWS**, **PostgreSQL**, **Redis**, **Cloudflare**.
+  - **FastAPI**: Handles endpoints for prompts, swap confirmations, and executions.
+  - **AWS**: Hosts the backend (ECS), storage (S3), and caching (ElastiCache).
+  - **PostgreSQL**: Stores sentiment data and user logs.
+  - **Redis**: Caches MCP context and swap quotes.
+  - **Cloudflare**: Provides DDoS protection and CDN.
+  - **Setup**:
+    - Deploy FastAPI on AWS ECS.
+    - Configure PostgreSQL (RDS) and Redis (ElastiCache).
+    - Enable Cloudflare for security and performance.
+  - **Dependencies**: `fastapi`, `boto3`, `psycopg2`, `redis`, `uvicorn`.
+  - **Code Example**:
+
+    ```python
+    from fastapi import FastAPI
+    from pydantic import BaseModel
+    import requests
+    
+    app = FastAPI()
+    
+    class Prompt(BaseModel):
+      text: str
+      userId: str
+    
+    @app.post("/prompt")
+    async def process_prompt(prompt: Prompt):
+      # Use GPT-4 to parse the prompt
+      parsed = parse_prompt(prompt.text)  # From GenAI section
+      if "swap" in parsed:
+        # Fetch best protocol and confirm
+        confirm_data = confirm_swap(parsed)
+        return {"confirm": confirm_data["confirm"]}
+      return {"response": "Query processed"}
+    ```
+
+## MVP Implementation Steps
+
+1. **Setup Environment**:
+
+   - Python: `pip install fastapi uvicorn openai tweepy nltk psycopg2 redis celery`.
+   - React: `npx create-react-app snapfai-frontend && npm install tailwindcss socket.io-client`.
+   - AWS: Configure ECS, RDS (PostgreSQL), ElastiCache (Redis).
+
+2. **Build Backend**:
+
+   - Create FastAPI endpoints: `/prompt` (parse prompts), `/swap/confirm` (select protocol), `/swap/execute` (execute swap).
+   - Integrate OpenAI GPT-4 API for prompt parsing and function calling.
+   - Set up MCP client to query 0x, Odos, and Twitter servers; use Redis for context.
+
+3. **Integrate DeFi APIs**:
+
+   - Register API keys for 0x, Odos, Pyth, and Twitter.
+   - Test 0x/Odos swaps on Sepolia testnet.
+   - Use Infura for Ethereum/Arbitrum node access.
+
+4. **Build Frontend**:
+
+   - Create a React chat interface with Tailwind CSS.
+   - Connect to FastAPI via WebSocket for real-time responses.
+   - Add Web3Modal for MetaMask integration.
+
+5. **Implement Price Triggers**:
+
+   - Use Celery to periodically check Pyth price feeds.
+   - Trigger swaps when conditions are met (e.g., WBTC &lt; $70,000).
+
+6. **Add Sentiment Analysis**:
+
+   - Fetch tweets via Twitter API.
+   - Analyze sentiment with VADER and store in PostgreSQL.
+
+7. **Deploy**:
+
+   - Deploy FastAPI on AWS ECS and React on S3 with Cloudfront.
+   - Secure the application with Cloudflare.
+   - Test the full swap flow: “Swap 100 USDT to ETH” → Confirmation → Execution.
+
+## Assumptions and Notes
+
+- **Token Resolution**: Symbols (e.g., USDT) are resolved to addresses using a tokenlist (e.g., Uniswap’s).
+- **Chains**: Ethereum and Arbitrum only for MVP.
+- **Security**: Store API keys in `.env` files and use Cloudflare for DDoS protection.
+- **MCP**: Leverage Anthropic’s Twitter template; build custom servers for 0x and Odos.
+
+## Next Steps for AI Agent
+
+- **Code Backend**: Implement FastAPI with `/prompt`, `/swap/confirm`, and `/swap/execute`.
+- **Test APIs**: Validate 0x and Odos on Sepolia testnet.
+- **Build Frontend**: Create the React chat interface with WebSocket and Web3Modal.
+- **Deploy MCP**: Set up Twitter and swap protocol servers.
+- **Test End-to-End**: Run a full swap flow from prompt to execution.
+
+## Resources
+
+- OpenAI API
+- 0x API
+- Odos API
+- Pyth Network
+- Twitter API
+- Anthropic MCP
+- AWS ECS
+- Uniswap Tokenlist
