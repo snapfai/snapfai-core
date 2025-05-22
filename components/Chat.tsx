@@ -13,6 +13,9 @@ import SwapConfirmation from './SwapConfirmation';
 import { v4 as uuid } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 
+// Add rehype-raw to support HTML in markdown for links
+import rehypeRaw from 'rehype-raw';
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -66,6 +69,13 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
   const [userId, setUserId] = useState<string>('');
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [swapDetails, setSwapDetails] = useState<SwapDetails | null>(null);
+  const [useLiveSearch, setUseLiveSearch] = useState(false);
+  const [showSearchOptions, setShowSearchOptions] = useState(false);
+  const [searchSources, setSearchSources] = useState({
+    web: true,
+    news: true,
+    x: true
+  });
   
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -133,6 +143,36 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     reset();
     
     try {
+      // Prepare search sources based on user selection
+      const selectedSources = [];
+      if (searchSources.web) {
+        selectedSources.push({ 
+          type: "web", 
+          excluded_websites: ["wikipedia.org", "investing.com", "yahoo.com"],
+          safe_search: true
+        });
+      }
+      if (searchSources.news) {
+        selectedSources.push({ type: "news" });
+      }
+      if (searchSources.x) {
+        selectedSources.push({ 
+          type: "x", 
+          x_handles: [
+            "binance",
+            "kraken",
+            "coinbase",
+            "coingecko",
+            "coinmarketcap",
+            "bitfinex",
+            "huobi",
+            "okx",
+            "bybit",
+            "kucoin"
+          ]
+        });
+      }
+      
       // Replace with your actual API endpoint
       const response = await fetch('/api/prompt', {
         method: 'POST',
@@ -141,7 +181,9 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
         },
         body: JSON.stringify({
           text: userMessage,
-          userId
+          userId,
+          useLiveSearch,
+          searchSources: useLiveSearch ? selectedSources : null
         })
       });
       
@@ -169,8 +211,12 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
           // Fetch price quote
           await fetchSwapQuote(result.data);
         } else {
-          // Regular chat message
-          updateMessage(loadingMessage.id, result.message);
+          // Regular chat message with live search indicator if applicable
+          const messageWithIndicator = result.hasLiveSearch ? 
+            `${result.message}` : 
+            result.message;
+          
+          updateMessage(loadingMessage.id, messageWithIndicator);
         }
       } else {
         // Error message
@@ -306,7 +352,7 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
                       </AvatarFallback>
                     </Avatar>
                     
-                    <div className={`rounded-lg p-4 ${
+                    <div className={`rounded-lg px-4 py-2 ${
                       message.role === 'assistant' 
                         ? 'bg-secondary text-secondary-foreground shadow-sm' 
                         : 'bg-primary text-primary-foreground'
@@ -322,7 +368,21 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
                         </div>
                       ) : (
                         <div className="prose prose-sm dark:prose-invert max-w-none chat-prose break-words">
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                          <ReactMarkdown 
+                            rehypePlugins={[rehypeRaw]}
+                            components={{
+                              a: ({node, ...props}) => (
+                                <a 
+                                  {...props} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:underline"
+                                />
+                              )
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
                         </div>
                       )}
                     </div>
@@ -333,9 +393,75 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
           </ScrollArea>
         </CardContent>
         
-        <CardFooter className="pt-0 pb-4">
+        <CardFooter className="p-4 border-t">
           <form onSubmit={handleSubmit(handleSendMessage)} className="w-full">
             <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <Button
+                  type="button"
+                  variant={useLiveSearch ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setUseLiveSearch(!useLiveSearch);
+                    if (!useLiveSearch) {
+                      setShowSearchOptions(true);
+                    } else {
+                      setShowSearchOptions(false);
+                    }
+                  }}
+                  className={`text-xs flex items-center gap-1 ${useLiveSearch ? "bg-blue-500 hover:bg-blue-600 text-white" : ""}`}
+                >
+                  <span className={`inline-block w-3 h-3 rounded-full ${useLiveSearch ? "bg-green-400" : "bg-gray-300"}`}></span>
+                  {useLiveSearch ? "Live Search: ON" : "Live Search: OFF"}
+                </Button>
+                
+                {useLiveSearch && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSearchOptions(!showSearchOptions)}
+                      className="text-xs"
+                    >
+                      {showSearchOptions ? "Hide Options" : "Show Options"}
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Using <span className="font-medium text-blue-500">real-time data</span> with <span className="font-medium text-blue-500">sources</span>
+                    </span>
+                  </>
+                )}
+              </div>
+              
+              {showSearchOptions && useLiveSearch && (
+                <div className="bg-muted p-2 rounded-md mb-2 flex flex-wrap gap-2">
+                  <label className="flex items-center gap-1 text-xs">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.web}
+                      onChange={() => setSearchSources({...searchSources, web: !searchSources.web})}
+                    />
+                    Web
+                  </label>
+                  <label className="flex items-center gap-1 text-xs">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.news}
+                      onChange={() => setSearchSources({...searchSources, news: !searchSources.news})}
+                    />
+                    News
+                  </label>
+                  <label className="flex items-center gap-1 text-xs">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.x}
+                      onChange={() => setSearchSources({...searchSources, x: !searchSources.x})}
+                    />
+                    X (Twitter)
+                  </label>
+                </div>
+              )}
+              
               <Textarea
                 placeholder="Tell me what DeFi action you want to perform..."
                 {...register('message', { required: true })}

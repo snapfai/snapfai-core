@@ -101,13 +101,14 @@
 }
 
 .chat-prose a {
-  color: #FFBF69 !important;
-  text-decoration: underline;
-  font-weight: 500;
+  color: #3b82f6 !important; /* bright blue */
+  text-decoration: underline !important;
+  font-weight: 500 !important;
 }
 
 .chat-prose a:hover {
-  text-decoration: none;
+  text-decoration: underline !important;
+  opacity: 0.8;
 }
 
 /* Adjust spacing for the first element in chat bubbles */
@@ -118,4 +119,11 @@
 /* Adjust spacing for the last element in chat bubbles */
 .chat-prose > *:last-child {
   margin-bottom: 0 !important;
+}
+
+/* Sources section styling */
+.chat-prose h2:last-of-type {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
+  margin-top: 1rem !important;
 }

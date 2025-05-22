@@ -39,8 +39,8 @@ SnapFAI is a chat-based DeFi interaction layer that simplifies token swapping on
 
 3. Create an `.env.local` file in the root directory with the following content:
    ```
-   # OpenAI API Key
-   OPENAI_API_KEY=your_openai_api_key
+   # xAI API Key
+   XAI_API_KEY=your_xai_api_key
 
    # DeFi API Keys (optional for MVP)
    ZERO_X_API_KEY=your_0x_api_key
