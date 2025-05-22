@@ -24,24 +24,28 @@ interface SwapDetails {
 interface SwapConfirmationProps {
   details: SwapDetails;
   onConfirm: (confirm: 'Yes' | 'No') => void;
+  onClose?: () => void;
 }
 
-const SwapConfirmation = ({ details, onConfirm }: SwapConfirmationProps) => {
+const SwapConfirmation = ({ details, onConfirm, onClose }: SwapConfirmationProps) => {
   const [open, setOpen] = useState(true);
 
   const handleClose = () => {
     setOpen(false);
     onConfirm('No');
+    if (onClose) onClose();
   };
 
   const handleConfirm = () => {
     setOpen(false);
     onConfirm('Yes');
+    if (onClose) onClose();
   };
 
   const handleCancel = () => {
     setOpen(false);
     onConfirm('No');
+    if (onClose) onClose();
   };
 
   return (

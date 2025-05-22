@@ -4,49 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Wallet, Menu, X, Zap } from 'lucide-react';
+import { Menu, X, Zap, Wallet, ArrowUpDown } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
   SheetClose,
 } from '@/components/ui/sheet';
+import ConnectButton from './ConnectButton';
+import NetworkSwitcher from './NetworkSwitcher';
+import { useAppKitAccount } from '@reown/appkit/react';
 
 const Header = () => {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
-  
-  const truncateAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-  
-  const handleConnectWallet = async () => {
-    setIsConnecting(true);
-    
-    try {
-      // In a real implementation, we would use Web3Modal or a similar library
-      // to connect to the user's wallet
-      
-      // Mock wallet connection for MVP
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockAddress = '0xa1b2c3d4e5f67890abcdef1234567890abcdef12';
-      setWalletAddress(mockAddress);
-      setIsConnected(true);
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-  
-  const handleDisconnectWallet = () => {
-    setIsConnected(false);
-    setWalletAddress('');
-  };
-  
+  const { isConnected } = useAppKitAccount();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
@@ -85,6 +56,18 @@ const Header = () => {
                 <Link href="/snap" className="text-lg font-medium">
                   Snap
                 </Link>
+                {isConnected && (
+                  <>
+                    <Link href="/wallet" className="text-lg font-medium flex items-center gap-2">
+                      <Wallet className="h-5 w-5" />
+                      Wallet
+                    </Link>
+                    <Link href="/swap" className="text-lg font-medium flex items-center gap-2">
+                      <ArrowUpDown className="h-5 w-5" />
+                      Swap
+                    </Link>
+                  </>
+                )}
                 <Link href="#" className="text-lg font-medium">
                   Docs
                 </Link>
@@ -112,6 +95,18 @@ const Header = () => {
           <Link href="/snap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Snap
           </Link>
+          {isConnected && (
+            <>
+              <Link href="/wallet" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
+                <Wallet className="h-4 w-4" />
+                Wallet
+              </Link>
+              <Link href="/swap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
+                <ArrowUpDown className="h-4 w-4" />
+                Swap
+              </Link>
+            </>
+          )}
           <Link href="#" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Docs
           </Link>
@@ -119,6 +114,8 @@ const Header = () => {
         
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          
+          {isConnected && <NetworkSwitcher />}
           
           {!isConnected && (
             <Button 
@@ -131,25 +128,7 @@ const Header = () => {
             </Button>
           )}
           
-          {isConnected ? (
-            <Button
-              variant="outline"
-              onClick={handleDisconnectWallet}
-              className="flex items-center gap-2"
-            >
-              <Wallet className="h-4 w-4" />
-              {truncateAddress(walletAddress)}
-            </Button>
-          ) : (
-            <Button
-              onClick={handleConnectWallet}
-              disabled={isConnecting}
-              className="flex items-center gap-2 bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black"
-            >
-              <Wallet className="h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-            </Button>
-          )}
+          <ConnectButton />
         </div>
       </div>
     </header>

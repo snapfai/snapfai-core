@@ -5,49 +5,37 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, confirm } = await request.json();
+    const data = await request.json();
     
-    if (!userId) {
+    if (!data.userId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       );
     }
     
-    if (confirm !== 'Yes' && confirm !== 'yes') {
-      return NextResponse.json({ 
-        success: true,
-        message: 'Swap cancelled. Is there anything else I can help you with?' 
-      });
+    if (!data.signedTx) {
+      return NextResponse.json(
+        { error: 'Signed transaction data is required' },
+        { status: 400 }
+      );
     }
     
-    // In production, we would fetch the pending swap from Redis/session store
-    // For MVP, we'll simulate the transaction creation
+    // In production, we would submit the signed transaction to the blockchain
+    // For now, we'll simulate the transaction submission
+    console.log('Received signed transaction data:', data.signedTx);
     
-    // Simulate backend processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Simulate a transaction hash
+    const txHash = '0x' + Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
     
-    // Create a mock transaction
-    const transaction = {
-      to: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // Uniswap Router address
-      data: '0x' + Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join(''),
-      value: '0',
-      gasLimit: '250000',
-      chainId: 1
-    };
-    
-    // Return transaction data that would be sent to the wallet for signing
+    // Return success response with simulated transaction hash
     return NextResponse.json({
       success: true,
-      message: 'Your swap is ready to be executed. Please sign the transaction in your wallet.',
+      message: 'Transaction submitted successfully! Your swap is being processed on the blockchain.',
       transaction: {
-        ...transaction,
-        // Add simulated swap details for the frontend
-        tokenIn: 'ETH',
-        tokenOut: 'USDT',
-        amountIn: 1.0,
-        estimatedAmountOut: 3000,
-        protocol: '0x'
+        hash: txHash,
+        blockExplorer: `https://etherscan.io/tx/${txHash}`,
+        status: 'pending'
       }
     });
   } catch (error) {
@@ -55,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false,
-        message: 'Sorry, I encountered an error while preparing your swap. Please try again later.'
+        message: 'Sorry, I encountered an error while submitting your transaction. Please try again later.'
       },
       { status: 500 }
     );

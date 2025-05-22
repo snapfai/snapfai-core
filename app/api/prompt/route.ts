@@ -298,7 +298,14 @@ function fallbackParser(text: string) {
 export async function POST(request: NextRequest) {
   let text = '';
   try {
-    const { text: promptText, userId, useLiveSearch, searchSources } = await request.json();
+    const { 
+      text: promptText, 
+      userId, 
+      useLiveSearch, 
+      searchSources,
+      walletInfo // New parameter to receive wallet information
+    } = await request.json();
+    
     text = promptText; // Store text for potential fallback use
     
     if (!text) {
@@ -390,6 +397,25 @@ export async function POST(request: NextRequest) {
     // For the MVP, we'll simulate the backend by directly calling OpenAI
     // In production, this would be calling our backend server
     
+    // Create wallet context if wallet information is provided
+    let walletContext = '';
+    if (walletInfo && walletInfo.address) {
+      walletContext = `
+USER WALLET INFORMATION:
+- Wallet Address: ${walletInfo.address}
+- Connected Network: ${walletInfo.network || 'Not specified'}
+- Wallet Provider: ${walletInfo.provider || 'Not specified'}
+- Wallet Balance: ${walletInfo.balance || 'Not available'}
+${walletInfo.ens ? `- ENS Name: ${walletInfo.ens}` : ''}
+
+When providing responses, you should take this wallet information into account:
+1. For swap requests, use the user's actual wallet address and network when possible
+2. Personalize responses based on the user's wallet information 
+3. For token balances or network-specific information, use the connected network
+4. When suggesting actions, ensure they're compatible with the user's wallet type and network
+`;
+    }
+    
     // Define system prompt
     const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform. Your capabilities include:
 
@@ -456,6 +482,8 @@ export async function POST(request: NextRequest) {
      * EXPLAIN relationships between different pieces of information
      * HIGHLIGHT consensus views vs. outlier perspectives
      * PRESENT a coherent, well-reasoned analysis rather than just reporting
+
+${walletContext}
 
 FORMAT FOR EXTRACTING SWAP DETAILS:
 - When given "Swap 100 USDT to ETH on Arbitrum" → Extract amount=100, tokenIn=USDT, tokenOut=ETH, chain=Arbitrum
