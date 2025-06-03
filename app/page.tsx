@@ -3,10 +3,12 @@ import { ArrowRight, MessageSquare, Layers, Coins, Clock, BarChart3, Zap, Brain,
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ThemeToggle } from "@/components/theme-toggle"
+import HomeClientWrapper from "@/components/HomeClientWrapper"
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
+      <HomeClientWrapper>
       <main className="flex-1">
         {/* Hero Section */}
         <section className="py-20 md:py-28 relative overflow-hidden">
@@ -25,9 +27,11 @@ export default function Home() {
                 simple chat interface.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button size="lg" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
-                  Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                <Link href="/snap">
+                  <Button size="lg" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
+                    Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
                 <Button size="lg" variant="outline" className="dark:border-gray-700 dark:text-gray-200">
                   Watch Demo
                 </Button>
@@ -175,9 +179,11 @@ export default function Home() {
               <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
                 Join SnapFAI today and transform how you interact with decentralized finance.
               </p>
-              <Button size="lg" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
-                Get Started Now <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <Link href="/snap">
+                <Button size="lg" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
+                  Get Started Now <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
@@ -287,6 +293,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      </HomeClientWrapper>
     </div>
   )
 }
