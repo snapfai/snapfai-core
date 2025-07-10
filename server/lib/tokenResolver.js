@@ -2,6 +2,8 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const ethers = require('ethers');
+const { SUPPORTED_CHAINS } = require('../../lib/chains');
+const { resolveToken, getTokensForChain } = require('../../lib/tokens');
 
 // Cache for resolved tokens
 let tokenCache = {};
@@ -17,9 +19,11 @@ async function loadTokenList() {
     const response = await axios.get('https://gateway.ipfs.io/ipns/tokens.uniswap.org');
     const tokenList = response.data;
     
-    // Initialize cache if needed
-    if (!tokenCache.ethereum) tokenCache.ethereum = {};
-    if (!tokenCache.arbitrum) tokenCache.arbitrum = {};
+    // Initialize cache for all supported chains
+    Object.keys(SUPPORTED_CHAINS).forEach(chainKey => {
+      const chainId = SUPPORTED_CHAINS[chainKey].id;
+      if (!tokenCache[chainKey]) tokenCache[chainKey] = {};
+    });
     
     // Process tokens from Uniswap list
     tokenList.tokens.forEach(token => {
@@ -27,20 +31,13 @@ async function loadTokenList() {
       const symbol = token.symbol.toLowerCase();
       const address = token.address.toLowerCase();
       
-      // Map Ethereum mainnet (chainId = 1)
-      if (chainId === 1 && !tokenCache.ethereum[symbol]) {
-        tokenCache.ethereum[symbol] = {
-          address,
-          symbol: token.symbol,
-          decimals: token.decimals,
-          name: token.name,
-          logo: token.logoURI
-        };
-      }
+      // Find the chain key for this chainId
+      const chainKey = Object.keys(SUPPORTED_CHAINS).find(
+        key => SUPPORTED_CHAINS[key].id === chainId
+      );
       
-      // Map Arbitrum (chainId = 42161)
-      if (chainId === 42161 && !tokenCache.arbitrum[symbol]) {
-        tokenCache.arbitrum[symbol] = {
+      if (chainKey && !tokenCache[chainKey][symbol]) {
+        tokenCache[chainKey][symbol] = {
           address,
           symbol: token.symbol,
           decimals: token.decimals,
@@ -65,7 +62,7 @@ async function loadTokenList() {
       coinGeckoResponse.data.forEach(token => {
         const symbol = token.symbol.toLowerCase();
         
-        // Only add if not already in cache
+        // Only add to ethereum if not already in cache
         if (!tokenCache.ethereum[symbol]) {
           tokenCache.ethereum[symbol] = {
             symbol: token.symbol.toUpperCase(),
@@ -112,7 +109,7 @@ async function loadTokenList() {
 /**
  * Resolve a token symbol or address to token details
  * @param {string} tokenIdentifier - Token symbol or address
- * @param {string} chain - Chain name (ethereum or arbitrum)
+ * @param {string} chain - Chain name (ethereum, arbitrum, base, etc.)
  * @returns {Promise<object|null>} - Token details or null if not found
  */
 async function resolveTokenSymbol(tokenIdentifier, chain = 'ethereum') {
@@ -124,6 +121,21 @@ async function resolveTokenSymbol(tokenIdentifier, chain = 'ethereum') {
   // Normalize inputs
   const normalizedChain = chain.toLowerCase();
   const normalizedIdentifier = tokenIdentifier.toLowerCase();
+  
+  // First try the centralized token configuration
+  const chainConfig = SUPPORTED_CHAINS[normalizedChain];
+  if (chainConfig) {
+    const tokenFromConfig = resolveToken(tokenIdentifier, chainConfig.id);
+    if (tokenFromConfig) {
+      return {
+        address: tokenFromConfig.address,
+        symbol: tokenFromConfig.symbol,
+        decimals: tokenFromConfig.decimals,
+        name: tokenFromConfig.name,
+        logo: tokenFromConfig.logoURI
+      };
+    }
+  }
   
   // Check if it's already an address
   if (ethers.utils.isAddress(normalizedIdentifier)) {
@@ -144,14 +156,14 @@ async function resolveTokenSymbol(tokenIdentifier, chain = 'ethereum') {
     };
   }
   
-  // Look up by symbol
+  // Look up by symbol in cache
   const chainTokens = tokenCache[normalizedChain] || {};
   if (chainTokens[normalizedIdentifier]) {
     return chainTokens[normalizedIdentifier];
   }
   
   // Special case handling for common tokens
-  if (normalizedIdentifier === 'eth' && normalizedChain === 'ethereum') {
+  if (normalizedIdentifier === 'eth') {
     return {
       address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Special address for ETH
       symbol: 'ETH',
@@ -160,31 +172,44 @@ async function resolveTokenSymbol(tokenIdentifier, chain = 'ethereum') {
     };
   }
   
-  if (normalizedIdentifier === 'eth' && normalizedChain === 'arbitrum') {
-    return {
-      address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Special address for ETH on Arbitrum
-      symbol: 'ETH',
-      decimals: 18,
-      name: 'Ethereum'
-    };
+  // Handle native tokens for different chains
+  if (chainConfig) {
+    const nativeSymbol = chainConfig.symbol.toLowerCase();
+    if (normalizedIdentifier === nativeSymbol) {
+      // Get the native token from our configuration
+      const tokens = getTokensForChain(chainConfig.id);
+      const nativeToken = tokens.find(token => token.isNative);
+      if (nativeToken) {
+        return {
+          address: nativeToken.address,
+          symbol: nativeToken.symbol,
+          decimals: nativeToken.decimals,
+          name: nativeToken.name,
+          logo: nativeToken.logoURI
+        };
+      }
+    }
   }
   
-  // Try to fetch from CoinGecko as a last resort
-  try {
-    const response = await axios.get(`https://api.coingecko.com/api/v3/coins/ethereum/contract/${normalizedIdentifier}`);
-    const tokenData = response.data;
-    
-    return {
-      address: tokenData.contract_address.toLowerCase(),
-      symbol: tokenData.symbol.toUpperCase(),
-      decimals: tokenData.detail_platforms.ethereum.decimal_place || 18,
-      name: tokenData.name,
-      logo: tokenData.image.small
-    };
-  } catch (error) {
-    console.warn(`Could not resolve token ${tokenIdentifier} on ${chain}:`, error.message);
-    return null;
+  // Try to fetch from CoinGecko as a last resort (only for Ethereum)
+  if (normalizedChain === 'ethereum') {
+    try {
+      const response = await axios.get(`https://api.coingecko.com/api/v3/coins/ethereum/contract/${normalizedIdentifier}`);
+      const tokenData = response.data;
+      
+      return {
+        address: tokenData.contract_address.toLowerCase(),
+        symbol: tokenData.symbol.toUpperCase(),
+        decimals: tokenData.detail_platforms.ethereum.decimal_place || 18,
+        name: tokenData.name,
+        logo: tokenData.image.small
+      };
+    } catch (error) {
+      console.warn(`Could not resolve token ${tokenIdentifier} on ${chain}:`, error.message);
+    }
   }
+  
+  return null;
 }
 
 // Load token list on startup

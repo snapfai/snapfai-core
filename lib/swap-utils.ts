@@ -5,9 +5,10 @@
  * @returns Formatted amount as a string
  */
 export const formatTokenAmount = (amount: number, decimals: number): string => {
-  // For small decimal values, ensure we don't lose precision
-  const amountStr = amount.toString();
-  const parts = amountStr.split('.');
+  // Use BigInt to handle large numbers precisely
+  // Convert to string with fixed decimals to avoid floating point issues
+  const fixedAmount = amount.toFixed(decimals);
+  const parts = fixedAmount.split('.');
   
   // Handle whole numbers
   if (parts.length === 1 || !parts[1]) {
@@ -15,11 +16,12 @@ export const formatTokenAmount = (amount: number, decimals: number): string => {
   }
   
   // Handle decimal numbers
-  const decimalPart = parts[1].padEnd(decimals, '0').substring(0, decimals);
-  const wholePart = parts[0] === '0' ? '' : parts[0];
+  const wholePart = parts[0];
+  const decimalPart = parts[1].substring(0, decimals).padEnd(decimals, '0');
   
-  // Combine whole and decimal parts
-  return wholePart + decimalPart;
+  // Combine and convert to BigInt to remove leading zeros
+  const combined = wholePart + decimalPart;
+  return BigInt(combined).toString();
 };
 
 /**

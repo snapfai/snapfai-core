@@ -1,5 +1,6 @@
 const { OpenAI } = require('openai');
 const { resolveTokenSymbol } = require('../lib/tokenResolver');
+const { SUPPORTED_CHAINS, getChainByName } = require('../../lib/chains');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -19,18 +20,32 @@ async function processPrompt(prompt, userId, redisClient) {
     const userContext = await redisClient.get(`userContext:${userId}`);
     let context = userContext ? JSON.parse(userContext) : { chain: null };
     
+    // Get supported chain names for the AI
+    const supportedChainNames = Object.values(SUPPORTED_CHAINS).map(chain => chain.name).join(', ');
+    const supportedChainAliases = Object.values(SUPPORTED_CHAINS)
+      .flatMap(chain => chain.aliases)
+      .join(', ');
+    
     // Define system prompt
-    const systemPrompt = `You are an agent who manages the SnapFAI platform, a chat-based DeFi interaction layer that simplifies token swapping on Ethereum and Arbitrum. 
+    const systemPrompt = `You are an agent who manages the SnapFAI platform, a chat-based DeFi interaction layer that simplifies token swapping across multiple blockchains.
+
+Supported networks: ${supportedChainNames}
+Also accepts these aliases: ${supportedChainAliases}
 
 When a user asks you to swap tokens, you need to extract:
 - tokenIn (the token they want to swap from)
 - tokenOut (the token they want to swap to)
 - amount (the amount of tokenIn)
-- chain (Ethereum or Arbitrum)
+- chain (any of the supported networks above)
 - protocol (optional, can be 0x or Odos)
 
 If the chain isn't specified, default to ${context.chain || 'Ethereum'}.
 If any required information is missing, ask the user to provide it.
+
+Examples of valid requests:
+- "Swap 0.1 ETH to USDT on Base"
+- "Swap 100 USDC to DAI on Arbitrum"
+- "Swap 50 USDT to ETH on Sepolia testnet"
 `;
 
     // Define the tools for function calling
@@ -57,7 +72,7 @@ If any required information is missing, ask the user to provide it.
               },
               chain: {
                 type: "string",
-                description: "The blockchain to execute the swap on (Ethereum or Arbitrum)"
+                description: `The blockchain to execute the swap on. Supported: ${supportedChainNames}`
               },
               protocol: {
                 type: "string",
@@ -88,20 +103,34 @@ If any required information is missing, ask the user to provide it.
       if (toolCall.function.name === 'parse_swap') {
         const args = JSON.parse(toolCall.function.arguments);
         
-        // Resolve token symbols to addresses
-        const resolvedTokenIn = await resolveTokenSymbol(args.tokenIn);
-        const resolvedTokenOut = await resolveTokenSymbol(args.tokenOut);
+        // Validate and normalize the chain name
+        const chainConfig = getChainByName ? getChainByName(args.chain) : null;
+        if (!chainConfig) {
+          return {
+            success: false,
+            message: `I don't recognize the chain "${args.chain}". Supported networks: ${supportedChainNames}`
+          };
+        }
+        
+        // Use the normalized chain name
+        const normalizedChainName = Object.keys(SUPPORTED_CHAINS).find(
+          key => SUPPORTED_CHAINS[key] === chainConfig
+        ) || args.chain;
+        
+        // Resolve token symbols to addresses using the chain ID
+        const resolvedTokenIn = await resolveTokenSymbol(args.tokenIn, normalizedChainName);
+        const resolvedTokenOut = await resolveTokenSymbol(args.tokenOut, normalizedChainName);
         
         if (!resolvedTokenIn || !resolvedTokenOut) {
           return {
             success: false,
-            message: `I couldn't recognize one of the tokens you mentioned. Please try using a different token symbol or provide the token address directly.`
+            message: `I couldn't recognize one of the tokens you mentioned on ${chainConfig.name}. Please try using a different token symbol or provide the token address directly.`
           };
         }
         
         // Save user context
         await redisClient.set(`userContext:${userId}`, JSON.stringify({
-          chain: args.chain
+          chain: normalizedChainName
         }));
         
         // Return parsed swap data for confirmation
@@ -112,10 +141,10 @@ If any required information is missing, ask the user to provide it.
             tokenIn: resolvedTokenIn,
             tokenOut: resolvedTokenOut,
             amount: args.amount,
-            chain: args.chain,
+            chain: normalizedChainName,
             protocol: args.protocol
           },
-          message: `I'll help you swap ${args.amount} ${resolvedTokenIn.symbol} to ${resolvedTokenOut.symbol} on ${args.chain}. Would you like me to check prices?`
+          message: `I'll help you swap ${args.amount} ${resolvedTokenIn.symbol} to ${resolvedTokenOut.symbol} on ${chainConfig.name}. Would you like me to check prices?`
         };
       }
     }

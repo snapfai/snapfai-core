@@ -10,46 +10,16 @@ import { Loader2, ArrowUpDown, Info, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useSwap from '@/hooks/useSwap';
 import { parseTokenAmount } from '@/lib/swap-utils';
-
-// Common ERC20 tokens for demo purposes
-const TOKENS = [
-  {
-    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // ETH
-    symbol: 'ETH',
-    decimals: 18,
-    name: 'Ethereum',
-    logoURI: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
-  },
-  {
-    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
-    symbol: 'USDC',
-    decimals: 6,
-    name: 'USD Coin',
-    logoURI: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png'
-  },
-  {
-    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
-    symbol: 'USDT',
-    decimals: 6,
-    name: 'Tether',
-    logoURI: 'https://assets.coingecko.com/coins/images/325/small/Tether-logo.png'
-  },
-  {
-    address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI
-    symbol: 'DAI',
-    decimals: 18,
-    name: 'Dai Stablecoin',
-    logoURI: 'https://assets.coingecko.com/coins/images/9956/small/4943.png'
-  }
-];
+import { getTokensForChain, getDefaultTokenPair, TokenConfig } from '@/lib/tokens';
+import { SUPPORTED_CHAINS, getChainById } from '@/lib/chains';
 
 // Network options
-const NETWORKS = [
-  { id: 1, name: 'Ethereum' },
-  { id: 137, name: 'Polygon' },
-  { id: 42161, name: 'Arbitrum' },
-  { id: 8453, name: 'Base' }
-];
+const NETWORK_OPTIONS = Object.entries(SUPPORTED_CHAINS).map(([key, config]) => ({
+  value: config.id,
+  label: config.name,
+  symbol: config.symbol,
+  isTestnet: config.isTestnet
+}));
 
 export default function SwapInterface() {
   const { address, isConnected } = useAppKitAccount();
@@ -57,19 +27,33 @@ export default function SwapInterface() {
   const { toast } = useToast();
   const { loading, error, getPrice, executeSwap } = useSwap();
   
-  const [sellToken, setSellToken] = useState(TOKENS[0]);
-  const [buyToken, setBuyToken] = useState(TOKENS[1]);
+  const [selectedChainId, setSelectedChainId] = useState(1); // Default Ethereum mainnet
+  const [sellToken, setSellToken] = useState<TokenConfig | null>(null);
+  const [buyToken, setBuyToken] = useState<TokenConfig | null>(null);
   const [sellAmount, setSellAmount] = useState('');
   const [buyAmount, setBuyAmount] = useState('');
   const [quote, setQuote] = useState<any>(null);
   const [refreshQuote, setRefreshQuote] = useState(0);
-  const [selectedChainId, setSelectedChainId] = useState(1); // Default Ethereum mainnet
   const [apiError, setApiError] = useState<string | null>(null);
+  
+  // Initialize tokens when chain changes
+  useEffect(() => {
+    const tokens = getTokensForChain(selectedChainId);
+    const defaultPair = getDefaultTokenPair(selectedChainId);
+    
+    if (defaultPair) {
+      setSellToken(defaultPair[0]);
+      setBuyToken(defaultPair[1]);
+    } else if (tokens.length >= 2) {
+      setSellToken(tokens[0]);
+      setBuyToken(tokens[1]);
+    }
+  }, [selectedChainId]);
   
   // Effect to fetch price quote
   useEffect(() => {
     const fetchPrice = async () => {
-      if (!isConnected || !address || !sellAmount || parseFloat(sellAmount) <= 0) {
+      if (!isConnected || !address || !sellAmount || parseFloat(sellAmount) <= 0 || !sellToken || !buyToken) {
         setBuyAmount('');
         setQuote(null);
         return;
@@ -85,8 +69,8 @@ export default function SwapInterface() {
       
       try {
         const priceData = await getPrice({
-          sellToken,
-          buyToken,
+          sellToken: sellToken as any,
+          buyToken: buyToken as any,
           amount: parseFloat(sellAmount),
           isSelling: true,
           chainId: selectedChainId
@@ -110,18 +94,6 @@ export default function SwapInterface() {
             console.warn("Invalid buyAmount:", priceData.buyAmount);
           }
           
-          // If price is missing or invalid, calculate it from amounts
-          if (!priceData.price || isNaN(parseFloat(priceData.price)) || parseFloat(priceData.price) === 0) {
-            const sellAmountInWei = parseFloat(sellAmount) * Math.pow(10, sellToken.decimals);
-            const buyAmountInWei = parseFloat(priceData.buyAmount);
-            
-            if (sellAmountInWei > 0 && buyAmountInWei > 0) {
-              // Calculate price as buyAmount/sellAmount
-              priceData.price = (buyAmountInWei / sellAmountInWei).toString();
-              console.log("Calculated price:", priceData.price);
-            }
-          }
-          
           setBuyAmount(formattedBuyAmount);
           setQuote(priceData);
         }
@@ -138,6 +110,8 @@ export default function SwapInterface() {
   
   // Swap the tokens
   const handleSwapTokens = () => {
+    if (!sellToken || !buyToken) return;
+    
     const temp = sellToken;
     setSellToken(buyToken);
     setBuyToken(temp);
@@ -163,14 +137,14 @@ export default function SwapInterface() {
   
   // Execute the swap
   const handleSwap = async () => {
-    if (!isConnected || !address || !sellAmount || parseFloat(sellAmount) <= 0) {
+    if (!isConnected || !address || !sellAmount || parseFloat(sellAmount) <= 0 || !sellToken || !buyToken) {
       return;
     }
     
     try {
       const result = await executeSwap({
-        sellToken,
-        buyToken,
+        sellToken: sellToken as any,
+        buyToken: buyToken as any,
         amount: parseFloat(sellAmount),
         isSelling: true,
         slippagePercentage: 1, // 1% slippage
@@ -178,15 +152,11 @@ export default function SwapInterface() {
       });
       
       if (result) {
-        // In a real implementation, we would now trigger the transaction signing
-        // For now, just show a toast with the quote details
         toast({
           title: 'Swap Quote Ready',
           description: `Ready to swap ${sellAmount} ${sellToken.symbol} for approximately ${buyAmount} ${buyToken.symbol}`,
         });
         
-        // Here we would use appKit.open({ view: 'SendTransaction' }) to prompt the user to sign and send the transaction
-        // For this demo, we'll just log the details
         console.log('Swap quote:', result);
       }
     } catch (error: any) {
@@ -198,69 +168,62 @@ export default function SwapInterface() {
       });
     }
   };
-  
-  // Add the handleMaxClick function
-  const handleMaxClick = async () => {
-    if (!isConnected || !address) return;
-    
-    try {
-      // If balance information is available from wallet
-      if (window.ethereum) {
-        try {
-          // Get account balance
-          const accounts = await (window.ethereum as any).request({ 
-            method: 'eth_requestAccounts' 
-          });
-          
-          // Get balance for the current account
-          const balance = await (window.ethereum as any).request({
-            method: 'eth_getBalance',
-            params: [accounts[0], 'latest']
-          });
-          
-          // Convert hex balance to decimal and format
-          const wei = parseInt(balance, 16);
-          const ethBalance = wei / 1e18;
-          
-          // For ETH, leave a small amount for gas
-          if (sellToken.symbol.toUpperCase() === 'ETH') {
-            const maxAmount = Math.max(0, ethBalance - 0.01); // Leave 0.01 ETH for gas
-            setSellAmount(maxAmount.toString());
-          } else {
-            // For other tokens, we would need to check ERC20 balance
-            // This is a simplified version - in production, you'd check the token balance
-            setSellAmount(ethBalance.toString());
-          }
-        } catch (error) {
-          console.error('Error getting max balance:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error setting max amount:', error);
-    }
-  };
-  
+
+  if (!sellToken || !buyToken) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>Token Swap</CardTitle>
+          <CardDescription>Loading tokens...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Swap Tokens</CardTitle>
-        <CardDescription>Powered by 0x API</CardDescription>
+        <CardTitle>Token Swap</CardTitle>
+        <CardDescription>
+          Swap tokens at the best rates across multiple DEXs
+        </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Network Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Network</label>
+          <Select
+            value={selectedChainId.toString()}
+            onValueChange={(value) => {
+              setSelectedChainId(parseInt(value));
+              setRefreshQuote(prev => prev + 1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select network" />
+            </SelectTrigger>
+            <SelectContent>
+              {NETWORK_OPTIONS.map((network) => (
+                <SelectItem key={network.value} value={network.value.toString()}>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">{network.label}</div>
+                    {network.isTestnet && <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded">Testnet</span>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* From Token */}
         <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <label className="text-sm font-medium">From</label>
-            {isConnected && (
-              <button 
-                className="text-xs text-primary hover:underline"
-                onClick={handleMaxClick}
-              >
-                Max
-              </button>
-            )}
-          </div>
+          <label className="text-sm font-medium">From</label>
           
           <div className="flex space-x-2">
             <div className="w-1/2">
@@ -270,7 +233,6 @@ export default function SwapInterface() {
                 value={sellAmount}
                 onChange={(e) => setSellAmount(e.target.value)}
                 className="w-full"
-                disabled={!isConnected}
               />
             </div>
             
@@ -278,7 +240,8 @@ export default function SwapInterface() {
               <Select
                 value={sellToken.address}
                 onValueChange={(value) => {
-                  const token = TOKENS.find(t => t.address === value);
+                  const tokens = getTokensForChain(selectedChainId);
+                  const token = tokens.find(t => t.address === value);
                   if (token) {
                     setSellToken(token);
                     
@@ -296,7 +259,7 @@ export default function SwapInterface() {
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TOKENS.map((token) => (
+                  {getTokensForChain(selectedChainId).map((token) => (
                     <SelectItem key={token.address} value={token.address}>
                       <div className="flex items-center gap-2">
                         <div className="font-medium">{token.symbol}</div>
@@ -340,7 +303,8 @@ export default function SwapInterface() {
               <Select
                 value={buyToken.address}
                 onValueChange={(value) => {
-                  const token = TOKENS.find(t => t.address === value);
+                  const tokens = getTokensForChain(selectedChainId);
+                  const token = tokens.find(t => t.address === value);
                   if (token) {
                     setBuyToken(token);
                     
@@ -358,7 +322,7 @@ export default function SwapInterface() {
                   <SelectValue placeholder="Select token" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TOKENS.map((token) => (
+                  {getTokensForChain(selectedChainId).map((token) => (
                     <SelectItem key={token.address} value={token.address}>
                       <div className="flex items-center gap-2">
                         <div className="font-medium">{token.symbol}</div>
@@ -372,7 +336,7 @@ export default function SwapInterface() {
         </div>
         
         {/* Price and Details */}
-        {quote && (
+        {quote && !quote.error && (
           <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Price</span>
@@ -417,36 +381,6 @@ export default function SwapInterface() {
             </div>
           </div>
         )}
-        
-        {/* Network Selection */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Network</label>
-          
-          <div className="flex space-x-2">
-            <div className="w-1/2">
-              <Select
-                value={selectedChainId.toString()}
-                onValueChange={(value) => {
-                  setSelectedChainId(parseInt(value));
-                  setRefreshQuote(prev => prev + 1);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select network" />
-                </SelectTrigger>
-                <SelectContent>
-                  {NETWORKS.map((network) => (
-                    <SelectItem key={network.id} value={network.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium">{network.name}</div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
         
         {/* Action Button */}
         {!isConnected ? (
