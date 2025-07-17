@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createAppKit } from '@reown/appkit/react'
 import { mainnet, polygon } from '@reown/appkit/networks'
 import { WagmiProvider, type Config } from 'wagmi'
-import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from '@/config/custom-networks'
+import { arbitrumOneChain, baseChain, optimismChain, avalancheChain, sepoliaChain } from '@/config/custom-networks'
 import React, { type ReactNode } from 'react'
 
 // Set up queryClient
@@ -20,7 +20,7 @@ const modal = createAppKit({
   // Updated to use multi-adapter approach
   adapters: [wagmiAdapter, solanaAdapter, bitcoinAdapter],
   projectId,
-  networks: [mainnet, polygon, arbitrumOneChain, baseChain, optimismChain, avalancheChain],
+  networks: [mainnet, polygon, arbitrumOneChain, baseChain, optimismChain, avalancheChain, sepoliaChain],
   defaultNetwork: mainnet,
   metadata: {
     name: 'SnapFAI',

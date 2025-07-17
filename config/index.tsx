@@ -3,7 +3,7 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { mainnet, polygon, bitcoin } from '@reown/appkit/networks'
 import { SolanaAdapter } from '@reown/appkit-adapter-solana'
 import { BitcoinAdapter } from '@reown/appkit-adapter-bitcoin'
-import { avalancheChain, arbitrumOneChain, baseChain, optimismChain } from './custom-networks'
+import { avalancheChain, arbitrumOneChain, baseChain, optimismChain, sepoliaChain } from './custom-networks'
 import { solanaMainnet } from './solana-networks'
 
 // Get projectId from environment variable
@@ -22,6 +22,7 @@ export const networks = [
   arbitrumOneChain,
   baseChain,
   optimismChain,
+  sepoliaChain,
   // Solana mainnet only
   solanaMainnet, 
   // Bitcoin network
@@ -36,6 +37,7 @@ const customRpcUrls = {
   'eip155:42161': [{ url: 'https://arb1.arbitrum.io/rpc' }],
   'eip155:8453': [{ url: 'https://mainnet.base.org' }],
   'eip155:10': [{ url: 'https://mainnet.optimism.io' }],
+  'eip155:11155111': [{ url: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' }],
   'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': [{ url: 'https://api.mainnet-beta.solana.com' }]
 }
 

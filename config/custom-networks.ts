@@ -21,6 +21,28 @@ export const avalancheChain = defineChain({
   },
 });
 
+// Define Sepolia testnet custom network
+export const sepoliaChain = defineChain({
+  id: 11155111,
+  caipNetworkId: 'eip155:11155111',
+  chainNamespace: 'eip155',
+  name: 'Sepolia',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ethereum',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Sepolia Etherscan', url: 'https://sepolia.etherscan.io' },
+  },
+  testnet: true,
+});
+
 // Define Arbitrum One custom network
 export const arbitrumOneChain = defineChain({
   id: 42161,

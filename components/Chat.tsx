@@ -1016,6 +1016,7 @@ Transaction hash: \`${tx}\`
 
 You can check the status on ${
   chain === 'ethereum' ? '[Etherscan]' : 
+  chain === 'sepolia' ? '[Sepolia Etherscan]' :
   chain === 'arbitrum' ? '[Arbiscan]' :
   chain === 'base' ? '[Basescan]' :
   chain === 'polygon' ? '[Polygonscan]' :
@@ -1023,6 +1024,7 @@ You can check the status on ${
   '[the block explorer]'
 }(${
   chain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
+  chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${tx}` :
   chain === 'arbitrum' ? `https://arbiscan.io/tx/${tx}` :
   chain === 'base' ? `https://basescan.org/tx/${tx}` :
   chain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
@@ -1711,6 +1713,12 @@ Please approve the transaction in your wallet to complete the swap.`,
           chainName: 'Ethereum Mainnet',
           rpcUrl: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
           blockExplorer: 'https://etherscan.io',
+          symbol: 'ETH'
+        },
+        11155111: { // Sepolia
+          chainName: 'Sepolia Testnet',
+          rpcUrl: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+          blockExplorer: 'https://sepolia.etherscan.io',
           symbol: 'ETH'
         },
         8453: { // Base
