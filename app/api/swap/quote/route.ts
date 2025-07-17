@@ -20,13 +20,9 @@ export async function GET(request: NextRequest) {
     }
   }
   
-  const apiUrl = `https://api.0x.org/swap/permit2/quote?${modifiedParams.toString()}`;
-  
-  console.log("0x API URL:", apiUrl);
-  console.log("0x API parameters:", modifiedParams.toString());
+  const apiUrl = `https://api.0x.org/swap/allowance-holder/quote?${modifiedParams.toString()}`;
 
   try {
-    console.log("Calling 0x quote API:", apiUrl);
     
     const res = await fetch(apiUrl, {
       headers: {
@@ -37,7 +33,6 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
-      console.error(`0x API error: ${res.status}`, await res.text());
       return Response.json({
         success: false,
         error: `0x API returned status ${res.status}`,
@@ -47,25 +42,8 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json();
 
-    // Log the full response for debugging
-    console.log("0x API raw response:", JSON.stringify(data, null, 2));
-    
-    // Specifically log Permit2 data if present
-    if (data.permit2) {
-      console.log("Permit2 data found:", {
-        type: data.permit2.type,
-        hash: data.permit2.hash,
-        hasEip712: !!data.permit2.eip712,
-        eip712Keys: data.permit2.eip712 ? Object.keys(data.permit2.eip712) : [],
-        messageKeys: data.permit2.eip712?.message ? Object.keys(data.permit2.eip712.message) : []
-      });
-    } else {
-      console.log("No Permit2 data in response");
-    }
-
     // Check if the response contains an error
     if (data.code || data.reason || data.validationErrors) {
-      console.error("0x API returned error:", data);
       return Response.json({
         success: false,
         error: data.reason || data.code || "Unknown API error",
@@ -74,9 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     // More lenient check - just ensure we have some data to return
-    // Different 0x endpoints may return data in different formats
     if (data && typeof data === 'object') {
-      console.log("0x quote data received:", data);
       
       // Extract important fields from the response
       const responseData = {
