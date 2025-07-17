@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
   }
   
   const apiUrl = `https://api.0x.org/swap/permit2/quote?${modifiedParams.toString()}`;
+  
+  console.log("0x API URL:", apiUrl);
+  console.log("0x API parameters:", modifiedParams.toString());
 
   try {
     console.log("Calling 0x quote API:", apiUrl);
@@ -45,7 +48,20 @@ export async function GET(request: NextRequest) {
     const data = await res.json();
 
     // Log the full response for debugging
-    console.log("0x API raw response:", JSON.stringify(data));
+    console.log("0x API raw response:", JSON.stringify(data, null, 2));
+    
+    // Specifically log Permit2 data if present
+    if (data.permit2) {
+      console.log("Permit2 data found:", {
+        type: data.permit2.type,
+        hash: data.permit2.hash,
+        hasEip712: !!data.permit2.eip712,
+        eip712Keys: data.permit2.eip712 ? Object.keys(data.permit2.eip712) : [],
+        messageKeys: data.permit2.eip712?.message ? Object.keys(data.permit2.eip712.message) : []
+      });
+    } else {
+      console.log("No Permit2 data in response");
+    }
 
     // Check if the response contains an error
     if (data.code || data.reason || data.validationErrors) {
@@ -86,6 +102,17 @@ export async function GET(request: NextRequest) {
         // Include Permit2 data if available
         permit2: data.permit2
       };
+      
+      // Log transaction data details
+      if (responseData.transaction.data) {
+        console.log('Transaction data details:', {
+          to: responseData.transaction.to,
+          dataLength: responseData.transaction.data.length,
+          dataStartsWith: responseData.transaction.data.substring(0, 10),
+          dataEndsWith: responseData.transaction.data.substring(responseData.transaction.data.length - 10),
+          hasPermit2: !!responseData.permit2
+        });
+      }
       
       // Return success with the expected format
       return Response.json({

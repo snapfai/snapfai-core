@@ -102,6 +102,14 @@ export default function ProtectedRoute({
               <span className="font-semibold mt-1 block">This signature doesn't cost any gas fees.</span>
             </p>
           )}
+          {isConnected && !isAuthenticated && !needsSignature && (
+            <button 
+              onClick={() => setNeedsSignature(true)}
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Sign Message to Continue
+            </button>
+          )}
         </div>
       </div>
     )

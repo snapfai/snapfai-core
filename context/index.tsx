@@ -1,139 +1,92 @@
 'use client'
 
-import { wagmiAdapter, projectId, solanaAdapter, bitcoinAdapter } from '@/config'
+import { wagmiAdapter, projectId, networks, solanaAdapter, bitcoinAdapter } from '@/config'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createAppKit } from '@reown/appkit/react'
-import { mainnet, polygon, bitcoin } from '@reown/appkit/networks'
-import React, { type ReactNode, useEffect, useState } from 'react'
-import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi'
-import { siweConfig } from '@/lib/siwe-config'
-import { avalancheChain, arbitrumNovaChain } from '@/config/custom-networks'
-import { solanaMainnet } from '@/config/solana-networks'
-import { useTheme } from 'next-themes'
+import { mainnet, polygon } from '@reown/appkit/networks'
+import { WagmiProvider, type Config } from 'wagmi'
+import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from '@/config/custom-networks'
+import React, { type ReactNode } from 'react'
 
 // Set up queryClient
 const queryClient = new QueryClient()
 
-// Ensure projectId is defined for type safety
-const safeProjectId = projectId || 'missing-project-id'
-
-// Set up metadata
-const metadata = {
-  name: 'SnapFAI',
-  description: 'AI-Powered DeFi Snap App',
-  url: 'https://snapfai.com', // Update with your actual domain
-  icons: ['https://snapfai.com/icon.png'] // Update with your actual icon
+if (!projectId) {
+  throw new Error('Project ID is not defined')
 }
 
-// Define minimal theme variables - just keeping the border radius and font
-type ThemeVariables = {
-  [key: string]: string | number;
-}
+// Create the modal
+const modal = createAppKit({
+  // Updated to use multi-adapter approach
+  adapters: [wagmiAdapter, solanaAdapter, bitcoinAdapter],
+  projectId,
+  networks: [mainnet, polygon, arbitrumOneChain, baseChain, optimismChain, avalancheChain],
+  defaultNetwork: mainnet,
+  metadata: {
+    name: 'SnapFAI',
+    description: 'Smart DeFi Trading Assistant',
+    url: 'https://snapfai.com', // origin must match your domain & subdomain
+    icons: ['https://avatars.githubusercontent.com/u/179229932']
+  },
+  // Disable features that might interfere with direct wallet interactions
+  features: {
+    analytics: true, // Optional
+    email: false, // Disable email login
+    socials: [], // Disable social logins
+    emailShowWallets: false, // Don't show wallets in email flow
+    // Disable AppKit's built-in swaps and onramp to avoid conflicts
+    swaps: false, // Disable to prevent conflicts with our custom swap logic
+    onramp: false, // Disable to avoid confusion with DeFi protocols
+    // History disabled to avoid conflicts
+    history: false,
+  },
+  // Optional: Add terms & privacy policy
+  termsConditionsUrl: 'https://snapfai.com/terms',
+  privacyPolicyUrl: 'https://snapfai.com/privacy',
+  
+  // Disable SIWE to avoid signature requirements during connection
+  // siweConfig: siweConfig,
+})
 
-// Minimal theme variables - just border radius and font
-const themeVariables: ThemeVariables = {
-  '--w3m-border-radius-master': '12px',
-  '--w3m-font-family': 'Inter, sans-serif'
-}
+export function ContextProvider({ children, cookies }: { children: ReactNode, cookies?: string }) {
+  // Add error handling for wallet connections
+  const [connectionError, setConnectionError] = React.useState<Error | null>(null);
+  const [isRetrying, setIsRetrying] = React.useState(false);
 
-// Create AppKit with theme sync
-function createAppKitWithThemeSync() {
-  // Theme is synchronized with site's theme
-  return createAppKit({
-    adapters: [wagmiAdapter, solanaAdapter, bitcoinAdapter],
-    projectId: safeProjectId,
-    networks: [
-      // EVM networks
-      mainnet, 
-      polygon, 
-      avalancheChain, 
-      arbitrumNovaChain,
-      // Solana mainnet only
-      solanaMainnet,
-      // Bitcoin network
-      bitcoin
-    ],
-    defaultNetwork: mainnet,
-    metadata: metadata,
-    defaultAccountTypes: { eip155: "smartAccount" },
-    featuredWalletIds: [
-      "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
-      "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0"
-    ],
-    enableNetworkSwitch: true,
-    allWallets: "SHOW",
-    features: {
-      analytics: true,
-      swaps: true,
-      onramp: true,
-      email: true,
-      socials: [
-        "google",
-        "github",
-        "discord"
-      ],
-      emailShowWallets: true,
-      connectMethodsOrder: ["wallet", "email", "social"],
-      legalCheckbox: true
-    },
-    termsConditionsUrl: "https://snapfai.com/terms",
-    privacyPolicyUrl: "https://snapfai.com/privacy",
-    
-    // SIWE Configuration
-    siweConfig: siweConfig,
-    
-    // Custom chain images
-    chainImages: {
-      43114: '/images/avax-logo.png', // Avalanche
-      42170: '/images/arbitrum-nova-logo.png', // Arbitrum Nova
-      101: '/images/solana-logo.png', // Solana Mainnet
-      0: '/images/bitcoin-logo.png', // Bitcoin
-    },
-    
-    // Theme configuration - Will be set dynamically in the component
-    themeMode: undefined, // undefined means it will follow system preference
-    themeVariables: themeVariables
-  })
-}
-
-// Export the initial modal instance
-export let modal = createAppKitWithThemeSync()
-
-// Component to sync AppKit theme with the site theme
-export function ThemeSyncProvider({ children }: { children: ReactNode }) {
-  const { theme, systemTheme } = useTheme()
-  const [isClient, setIsClient] = useState(false)
-
-  // Only run on client side
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  // Update AppKit theme when site theme changes
-  useEffect(() => {
-    if (!isClient) return
-
-    // Determine current effective theme
-    const currentTheme = theme === 'system' ? systemTheme : theme
-    const isDarkMode = currentTheme === 'dark'
-
-    // Update AppKit with current theme - just the mode, no custom colors
-    modal.setThemeMode(isDarkMode ? 'dark' : 'light')
-  }, [theme, systemTheme, isClient])
-
-  return <>{children}</>
-}
-
-function ContextProvider({ children, cookies }: { children: ReactNode; cookies: string | null }) {
-  const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies)
+  // Handle connection errors
+  React.useEffect(() => {
+    if (connectionError && !isRetrying) {
+      console.error('WalletConnect connection error:', connectionError);
+      
+      // Clear any stored connection data that might be causing issues
+      if (typeof window !== 'undefined') {
+        // Clear WalletConnect related items from localStorage
+        const keysToRemove = Object.keys(localStorage).filter(key => 
+          key.includes('walletconnect') || 
+          key.includes('wagmi') || 
+          key.includes('appkit') ||
+          key.includes('wc@')
+        );
+        
+        console.log('Clearing problematic localStorage items:', keysToRemove);
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Set retry flag to prevent multiple retries
+        setIsRetrying(true);
+        
+        // Reload the page after a short delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      }
+    }
+  }, [connectionError, isRetrying]);
 
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config}>
       <QueryClientProvider client={queryClient}>
-        <ThemeSyncProvider>{children}</ThemeSyncProvider>
+        {children}
       </QueryClientProvider>
     </WagmiProvider>
   )
-}
-
-export default ContextProvider 
+} 

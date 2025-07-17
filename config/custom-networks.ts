@@ -21,12 +21,12 @@ export const avalancheChain = defineChain({
   },
 });
 
-// Define another custom network - This is an example for Arbitrum Nova
-export const arbitrumNovaChain = defineChain({
-  id: 42170,
-  caipNetworkId: 'eip155:42170',
+// Define Arbitrum One custom network
+export const arbitrumOneChain = defineChain({
+  id: 42161,
+  caipNetworkId: 'eip155:42161',
   chainNamespace: 'eip155',
-  name: 'Arbitrum Nova',
+  name: 'Arbitrum One',
   nativeCurrency: {
     decimals: 18,
     name: 'Ethereum',
@@ -34,10 +34,52 @@ export const arbitrumNovaChain = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://nova.arbitrum.io/rpc'],
+      http: ['https://arb1.arbitrum.io/rpc'],
     },
   },
   blockExplorers: {
-    default: { name: 'Arbiscan', url: 'https://nova.arbiscan.io' },
+    default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
+  },
+});
+
+// Define Base custom network
+export const baseChain = defineChain({
+  id: 8453,
+  caipNetworkId: 'eip155:8453',
+  chainNamespace: 'eip155',
+  name: 'Base',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ethereum',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://mainnet.base.org'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Basescan', url: 'https://basescan.org' },
+  },
+});
+
+// Define Optimism custom network
+export const optimismChain = defineChain({
+  id: 10,
+  caipNetworkId: 'eip155:10',
+  chainNamespace: 'eip155',
+  name: 'Optimism',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ethereum',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://mainnet.optimism.io'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Optimistic Etherscan', url: 'https://optimistic.etherscan.io' },
   },
 }); 

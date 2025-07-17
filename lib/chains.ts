@@ -42,6 +42,14 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
     rpcUrls: ['https://mainnet.base.org'],
     blockExplorer: 'https://basescan.org'
   },
+  optimism: {
+    id: 10,
+    name: 'Optimism',
+    symbol: 'ETH',
+    aliases: ['op', 'optimism mainnet', 'optimistic ethereum'],
+    rpcUrls: ['https://mainnet.optimism.io'],
+    blockExplorer: 'https://optimistic.etherscan.io'
+  },
   polygon: {
     id: 137,
     name: 'Polygon',

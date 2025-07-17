@@ -24,6 +24,24 @@ import { resolveToken, getTokensForChain } from '@/lib/tokens';
 // Add rehype-raw to support HTML in markdown for links
 import rehypeRaw from 'rehype-raw';
 
+// Custom link component to open external links in new tab
+const CustomLink = ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+  if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+    return (
+      <a 
+        {...props}
+        href={href} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-blue-600 hover:text-blue-800 underline"
+      >
+        {children}
+      </a>
+    );
+  }
+  return <a {...props} href={href}>{children}</a>;
+};
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -545,6 +563,9 @@ You can use this information to manually submit the transaction through your wal
       // User confirmed the swap request
       const { tokenIn, tokenOut, amount, chain } = pendingSwapRequest;
       
+      // Clear the form input
+      reset();
+      
       // Execute the swap
       executeSwap(tokenIn, tokenOut, amount, chain);
       
@@ -554,6 +575,9 @@ You can use this information to manually submit the transaction through your wal
     } else if (pendingSwapRequest && /^(no|nope|cancel|don't|dont|n)$/i.test(userMessage)) {
       // User declined the swap request
       addMessage('assistant', "No problem! Let me know if you'd like to try a different swap or if there's anything else I can help with.");
+      
+      // Clear the form input
+      reset();
       
       // Clear the pending request
       setPendingSwapRequest(null);
@@ -861,9 +885,6 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
       // Store the transaction data for later reference
       setLastTransactionData(transactionRequest);
       
-      // Add message that transaction is ready for signing
-      addMessage('assistant', 'Please approve the transaction in your wallet to complete the swap.');
-      
       try {
         // Format the transaction data for direct submission
         const txRequest = {
@@ -901,6 +922,15 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
         };
         
         console.log('Prepared transaction request for direct submission:', txRequest);
+        console.log('Full transaction data being sent:', {
+          to: txRequest.to,
+          dataLength: txRequest.data ? txRequest.data.length : 0,
+          dataPreview: txRequest.data ? txRequest.data.substring(0, 200) + '...' : 'undefined',
+          value: txRequest.value,
+          from: txRequest.from,
+          chainId: txRequest.chainId,
+          gas: txRequest.gas
+        });
         
         // Use window.ethereum directly to trigger wallet
         let tx;
@@ -913,25 +943,54 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
             });
             console.log('Transaction sent with hash:', tx);
           } catch (err: any) {
-            console.error('Error with direct ethereum provider:', err);
+            // Improved error logging with more details
+            console.error('Error with direct ethereum provider:', {
+              errorObject: err,
+              errorCode: err?.code,
+              errorMessage: err?.message,
+              errorData: err?.data,
+              errorReason: err?.reason,
+              errorType: typeof err
+            });
             
-            // Check if it's a user rejection - don't retry in this case
-            if (err.code === 4001 || err.message?.includes('User denied') || err.message?.includes('User rejected')) {
+            // Enhanced rejection detection
+            const isUserRejection = 
+              err?.code === 4001 || // Standard MetaMask rejection code
+              (typeof err?.message === 'string' && (
+                err.message.includes('User denied') || 
+                err.message.includes('User rejected') ||
+                err.message.includes('user rejected') ||
+                err.message.includes('user denied') ||
+                err.message.includes('rejected') ||
+                err.message.includes('cancelled') ||
+                err.message.includes('canceled')
+              ));
+            
+            if (isUserRejection) {
               console.log('User rejected transaction - not retrying');
-              throw err; // Re-throw to be handled by outer catch
+              // Create a standardized error object with clear message
+              const rejectionError = new Error('Transaction was rejected by the user');
+              rejectionError.name = 'UserRejectedRequestError';
+              throw rejectionError; // Re-throw to be handled by outer catch
             }
             
             // Only fall back to wagmi for non-user-rejection errors
             console.log('Falling back to wagmi sendTransaction for non-rejection error...');
-            tx = await sendTransactionAsync({
-              to: normalizedResult.to as `0x${string}`,
-              data: normalizedResult.data as `0x${string}`,
-              value: normalizedResult.value !== '0x0' && normalizedResult.value 
-                ? BigInt(normalizedResult.value) 
-                : undefined,
-              chainId: getChainId(chain) || 1,
-              gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
-            });
+            try {
+              tx = await sendTransactionAsync({
+                to: normalizedResult.to as `0x${string}`,
+                data: normalizedResult.data as `0x${string}`,
+                value: normalizedResult.value !== '0x0' && normalizedResult.value 
+                  ? BigInt(normalizedResult.value) 
+                  : undefined,
+                chainId: getChainId(chain) || 1,
+                gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
+              });
+            } catch (wagmiErr: any) {
+              console.error('Error with wagmi fallback:', wagmiErr);
+              // If wagmi also fails, throw the original error or the wagmi error if it's more informative
+              throw wagmiErr?.message ? wagmiErr : err;
+            }
           }
         } else {
           // Fall back to wagmi if window.ethereum is not available
@@ -956,21 +1015,20 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
 Transaction hash: \`${tx}\`
 
 You can check the status on ${
-  chain === 'ethereum' ? 'Etherscan' : 
-  chain === 'arbitrum' ? 'Arbiscan' :
-  chain === 'base' ? 'Basescan' :
-  chain === 'polygon' ? 'Polygonscan' :
-  chain === 'avalanche' ? 'Snowtrace' :
-  'the block explorer'
-}: 
-${
+  chain === 'ethereum' ? '[Etherscan]' : 
+  chain === 'arbitrum' ? '[Arbiscan]' :
+  chain === 'base' ? '[Basescan]' :
+  chain === 'polygon' ? '[Polygonscan]' :
+  chain === 'avalanche' ? '[Snowtrace]' :
+  '[the block explorer]'
+}(${
   chain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
   chain === 'arbitrum' ? `https://arbiscan.io/tx/${tx}` :
   chain === 'base' ? `https://basescan.org/tx/${tx}` :
   chain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
   chain === 'avalanche' ? `https://snowtrace.io/tx/${tx}` :
-  `Transaction hash: ${tx}`
-}
+  `#`
+})
 
 Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${tokenOut} is being processed.`
           );
@@ -978,16 +1036,65 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
           // Hash should always be available if transaction was sent
           addMessage('assistant', '✅ Transaction submitted! You can check your wallet for transaction status.');
         }
-      } catch (error) {
-        // User may have rejected the transaction
-        console.error('Transaction error:', error);
-        addMessage('assistant', "It seems the transaction wasn't completed. If you changed your mind, that's okay. Let me know if you'd like to try again or if you need anything else.");
+      } catch (error: any) {
+        // Enhanced error logging
+        console.error('Transaction error details:', {
+          error,
+          errorName: error?.name,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorData: error?.data,
+          errorType: typeof error
+        });
+        
+        // Improved user feedback based on error type
+        if (error?.name === 'UserRejectedRequestError' || 
+            error?.code === 4001 || 
+            (typeof error?.message === 'string' && 
+             (error.message.includes('reject') || 
+              error.message.includes('cancel') || 
+              error.message.includes('denied')))) {
+          // User rejection message
+          addMessage('assistant', "You've canceled the transaction. No problem! Let me know if you'd like to try again later or if you need anything else.");
+        } else if (typeof error?.message === 'string' && 
+                  (error.message.includes('insufficient funds') || 
+                   error.message.includes('gas') || 
+                   error.message.toLowerCase().includes('balance'))) {
+          // Insufficient funds message
+          addMessage('assistant', "It looks like there might be insufficient funds for this transaction. This could be due to the transaction amount plus the gas fees exceeding your available balance. Would you like to try with a smaller amount?");
+        } else {
+          // Generic error message
+          addMessage('assistant', "The transaction couldn't be completed. This might be due to network congestion, high gas prices, or a temporary wallet issue. Would you like to try again?");
+        }
       }
-    } catch (error) {
-      console.error('Error sending transaction:', error);
-      addMessage('assistant', 'There was an error processing the transaction. This could be due to insufficient funds, high gas prices, or a wallet issue. Would you like to try again with different parameters?');
+    } catch (error: any) {
+      // Log detailed error for debugging
+      console.error('Error sending transaction (outer catch):', {
+        error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorStack: error?.stack,
+        errorType: typeof error
+      });
+      
+      // Provide more specific feedback based on error patterns
+      if (typeof error?.message === 'string') {
+        if (error.message.includes('insufficient funds') || error.message.includes('balance')) {
+          addMessage('assistant', 'You don\'t have enough funds to complete this transaction. This includes both the swap amount and the gas fees. Would you like to try a smaller amount?');
+        } else if (error.message.includes('gas')) {
+          addMessage('assistant', 'There was an issue with the gas estimation for this transaction. Gas prices might be high right now or the network could be congested. Would you like to try again later?');
+        } else if (error.message.includes('nonce')) {
+          addMessage('assistant', 'There was a transaction sequence issue. This usually happens when you have pending transactions. Please check your wallet for any pending transactions and try again after they complete.');
+        } else {
+          addMessage('assistant', `There was an error processing the transaction: ${error.message}. Would you like to try again with different parameters?`);
+        }
+      } else {
+        addMessage('assistant', 'There was an error processing the transaction. This could be due to network issues, insufficient funds, or wallet configuration. Would you like to try again?');
+      }
     }
   };
+
+
 
   // Execute the swap after confirmation
   const executeSwap = async (tokenIn: string, tokenOut: string, amount: number, chain: string, skipNetworkCheck: boolean = false) => {
@@ -1018,10 +1125,23 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
       // Format amount correctly for the API call
       const formattedAmount = formatTokenAmount(amount, sellTokenInfo.decimals);
       
+      // Debug amount formatting
+      console.log('Amount formatting debug:', {
+        originalAmount: amount,
+        tokenDecimals: sellTokenInfo.decimals,
+        formattedAmount,
+        expectedForUSDC: amount * Math.pow(10, 6), // USDC has 6 decimals
+        expectedForETH: amount * Math.pow(10, 18), // ETH has 18 decimals
+        tokenSymbol: tokenIn
+      });
+      
       console.log('Requesting quote with params:', {
         sellToken: sellTokenInfo.address,
         buyToken: buyTokenInfo.address,
         sellAmount: formattedAmount,
+        sellAmountRaw: amount,
+        sellTokenDecimals: sellTokenInfo.decimals,
+        buyTokenDecimals: buyTokenInfo.decimals,
         takerAddress: address || 'No wallet connected',
         chainId
       });
@@ -1029,6 +1149,23 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
       // ALWAYS use cached quote data from handleSwapRequest - no API calls in executeSwap
       const quoteKey = `${tokenIn}-${tokenOut}-${amount}-${chain}-${sellTokenInfo.address}-${buyTokenInfo.address}`;
       const cacheValidityMs = 30000; // 30 seconds
+      
+      console.log('Cache lookup for executeSwap:', {
+        quoteKey,
+        cachedKey: cachedQuoteData?.key,
+        hasCache: !!cachedQuoteData,
+        cacheAge: cachedQuoteData ? Date.now() - cachedQuoteData.timestamp : 'N/A',
+        isValid: cachedQuoteData && (Date.now() - cachedQuoteData.timestamp) < cacheValidityMs
+      });
+      
+      console.log('Cache debug info:', {
+        expectedKey: quoteKey,
+        cachedKey: cachedQuoteData?.key,
+        hasCache: !!cachedQuoteData,
+        cacheAge: cachedQuoteData ? Date.now() - cachedQuoteData.timestamp : 'N/A',
+        cacheValidityMs,
+        isValid: cachedQuoteData && (Date.now() - cachedQuoteData.timestamp) < cacheValidityMs
+      });
       
       let result;
       
@@ -1039,10 +1176,37 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
         result = cachedQuoteData.data;
         updateMessage(loadingMessage.id, 'Using cached quote data for faster execution...', true);
       } else {
-        // This should never happen for confirmed swaps - always use cached data
-        console.error('❌ Cache miss in executeSwap - this should not happen for confirmed swaps');
-        updateMessage(loadingMessage.id, 'Quote data not available. Please try the swap request again.', false);
-        return;
+        // If cache miss, try to get fresh quote data
+        console.warn('⚠️ Cache miss in executeSwap - getting fresh quote data');
+        
+        // Import the utility functions
+        const { getSwapQuote } = await import('@/lib/swap-utils');
+        
+        updateMessage(loadingMessage.id, 'Getting fresh quote data...', true);
+        
+        try {
+          result = await getSwapQuote({
+            sellToken: sellTokenInfo.address,
+            buyToken: buyTokenInfo.address,
+            sellAmount: formattedAmount,
+            chainId,
+            takerAddress: address || '',
+            slippagePercentage: 1.0
+          });
+          
+          // Update cache with fresh data
+          setCachedQuoteData({
+            key: quoteKey,
+            data: result,
+            timestamp: Date.now()
+          });
+          
+          console.log('✅ Fresh quote data obtained and cached');
+        } catch (error) {
+          console.error('Error getting fresh quote:', error);
+          updateMessage(loadingMessage.id, 'Sorry, I couldn\'t get a fresh quote. Please try the swap request again.', false);
+          return;
+        }
       }
       
       // Check for error response
@@ -1068,6 +1232,9 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
         return;
       }
       
+        // Note: Token approvals will be handled automatically by the wallet when the transaction is sent
+  // No need to pre-approve tokens - the wallet will prompt for approval if needed
+      
       console.log('Full quote response object keys:', Object.keys(result));
       
       // Check if the transaction object exists and has the needed fields
@@ -1083,7 +1250,14 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
       let txValue = result.value || result.protocolFee || (result.transaction && result.transaction.value) || '0x0';
       const permit2 = result.permit2 || (result.transaction && result.transaction.permit2);
       
-      console.log('Extracted fields:', { txTo, txData, txValue });
+      console.log('Extracted transaction fields:', { 
+        txTo, 
+        txData: txData ? `${txData.substring(0, 66)}...` : 'undefined',
+        txValue,
+        hasPermit2: !!permit2,
+        resultKeys: Object.keys(result),
+        transactionKeys: result.transaction ? Object.keys(result.transaction) : 'No transaction object'
+      });
       
       // Debug the transaction object specifically if it exists
       if (result.transaction) {
@@ -1141,7 +1315,15 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
         gas: result.transaction?.gas || result.gas
       };
       
-      console.log('Normalized result:', normalizedResult);
+      console.log('Normalized result:', {
+        to: normalizedResult.to,
+        dataLength: normalizedResult.data ? normalizedResult.data.length : 0,
+        dataPreview: normalizedResult.data ? normalizedResult.data.substring(0, 100) + '...' : 'undefined',
+        value: normalizedResult.value,
+        buyAmount: normalizedResult.buyAmount,
+        hasPermit2: !!normalizedResult.permit2,
+        gas: normalizedResult.gas
+      });
       
       // Validate we have the minimum required transaction data
       if (!normalizedResult.to || !normalizedResult.data) {
@@ -1166,50 +1348,100 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
         try {
           updateMessage(
             loadingMessage.id,
-            `This swap requires additional approval signatures (Permit2). Preparing the transaction with signature...`,
+            `This swap requires additional approval signatures (Permit2). Please approve the signature request in your wallet...`,
             true
           );
           
-          // 1. Sign the permit2.eip712 message
-          // Use the direct import for viemSignTypedData
-          const { concat, numberToHex, size } = await import('viem');
-          
-          // Sign the EIP-712 message directly with walletClient
-          if (!walletClient) {
-            throw new Error('Wallet client not available');
-          }
-          
-          const signature = await walletClient.signTypedData({
+          console.log('Permit2 data received:', {
             domain: normalizedResult.permit2.eip712.domain,
-            types: normalizedResult.permit2.eip712.types, 
+            types: normalizedResult.permit2.eip712.types,
             primaryType: normalizedResult.permit2.eip712.primaryType,
-            message: normalizedResult.permit2.eip712.message,
-          }) as `0x${string}`;
-          
-          console.log('Permit2 signature obtained:', signature);
-          
-          // 2. Append signature length and data to transaction.data
-          const signatureLengthInHex = numberToHex(size(signature), {
-            signed: false,
-            size: 32,
+            message: normalizedResult.permit2.eip712.message
           });
           
-          // Concatenate the transaction data with signature length and signature
-          normalizedResult.data = concat([
-            normalizedResult.data,
-            signatureLengthInHex,
-            signature
-          ]);
+          // Debug the Permit2 message to see what amount is being approved
+          if (normalizedResult.permit2.eip712.message) {
+            console.log('Permit2 message details:', {
+              permitted: normalizedResult.permit2.eip712.message.permitted,
+              nonce: normalizedResult.permit2.eip712.message.nonce,
+              deadline: normalizedResult.permit2.eip712.message.deadline,
+              spender: normalizedResult.permit2.eip712.message.spender,
+              sigDeadline: normalizedResult.permit2.eip712.message.sigDeadline
+            });
+            
+            // Check if the permitted amount matches our swap amount
+            if (normalizedResult.permit2.eip712.message.permitted) {
+              const permittedAmount = normalizedResult.permit2.eip712.message.permitted.amount;
+              const swapAmount = formattedAmount;
+              console.log('Amount comparison:', {
+                permittedAmount,
+                swapAmount,
+                match: permittedAmount === swapAmount,
+                permittedAmountHex: '0x' + BigInt(permittedAmount).toString(16),
+                swapAmountHex: '0x' + BigInt(swapAmount).toString(16)
+              });
+            }
+          }
           
-          console.log('Transaction data updated with signature');
+          // Use window.ethereum for signing if available
+          if (typeof window !== 'undefined' && window.ethereum) {
+            try {
+              console.log('Signing Permit2 with window.ethereum...');
+              
+              const typedData = {
+                domain: normalizedResult.permit2.eip712.domain,
+                types: normalizedResult.permit2.eip712.types,
+                primaryType: normalizedResult.permit2.eip712.primaryType,
+                message: normalizedResult.permit2.eip712.message
+              };
+              
+              const signature = await (window.ethereum as any).request({
+                method: 'eth_signTypedData_v4',
+                params: [address, JSON.stringify(typedData)],
+              }) as `0x${string}`;
+              
+              console.log('Permit2 signature obtained:', signature);
+              
+              // No need for viem utilities - we'll append signature directly
+              
+              // For 0x API Permit2, we need to append the signature directly without length prefix
+              // The 0x API expects the signature to be appended as-is to the transaction data
+              const originalData = normalizedResult.data;
+              
+              // Remove the "0x" prefix from signature if present
+              const cleanSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
+              
+              // Append signature directly to transaction data (0x API format)
+              normalizedResult.data = normalizedResult.data + cleanSignature;
+              
+              console.log('Transaction data updated with Permit2 signature');
+              console.log('Permit2 signature details:', {
+                originalDataLength: originalData.length,
+                signatureLength: signature.length,
+                cleanSignatureLength: cleanSignature.length,
+                finalDataLength: normalizedResult.data.length,
+                signaturePreview: signature.substring(0, 66) + '...',
+                dataPreview: normalizedResult.data.substring(0, 200) + '...'
+              });
+              updateMessage(loadingMessage.id, 'Permit2 signature added to transaction. Proceeding with swap...', true);
+              
+            } catch (signError) {
+              console.error('Error signing Permit2:', signError);
+              throw new Error(`Permit2 signing failed: ${signError instanceof Error ? signError.message : 'Unknown error'}`);
+            }
+          } else {
+            throw new Error('No ethereum provider available for Permit2 signing');
+          }
         } catch (error) {
-          console.error('Error handling permit2 signature:', error);
+          console.error('Error handling Permit2 signature:', error);
           updateMessage(
             loadingMessage.id, 
-            'Sorry, there was an issue processing the Permit2 approval. Please try again.',
-            true
+            `Permit2 signature failed: ${error instanceof Error ? error.message : 'Unknown error'}. The swap may fail without proper approval.`,
+            false
           );
-          return;
+          
+          // Continue without Permit2 - let the transaction fail with a clear error
+          console.log('Proceeding without Permit2 signature - transaction may fail');
         }
       }
       
@@ -1226,7 +1458,9 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
 - Swapping: ${amount} ${tokenIn}
 - Receiving: ~${formattedBuyAmount} ${tokenOut}
 - Network: ${chain}
-- Slippage: 1%`,
+- Slippage: 1%
+
+Please approve the transaction in your wallet to complete the swap.`,
         false
       );
       
@@ -1580,25 +1814,6 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
               <span className="text-sm font-medium">Switching Network...</span>
             </div>
           )}
-          {process.env.NODE_ENV === 'development' && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSwapRequest('ETH', 'USDT', 0.0005, 'ethereum')}
-              >
-                Test Swap
-              </Button>
-              <Button
-                variant="outline" 
-                size="sm"
-                onClick={() => sendTestTransaction()}
-              >
-                Test Send
-              </Button>
-
-            </>
-          )}
           <Button
             variant="ghost"
             size="sm"
@@ -1688,7 +1903,12 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
                     </div>
                   ) : (
                     <div className="prose dark:prose-invert prose-sm max-w-none break-words">
-                      <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                      <ReactMarkdown 
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          a: CustomLink
+                        }}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     </div>
