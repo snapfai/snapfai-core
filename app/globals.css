@@ -57,3 +57,73 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Chat message markdown styling */
+.chat-prose {
+  font-size: 0.95rem;
+}
+
+.chat-prose h1 {
+  font-size: 1.5rem !important;
+  font-weight: 700;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: inherit !important;
+}
+
+.chat-prose h2 {
+  font-size: 1.25rem !important;
+  font-weight: 600;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  color: inherit !important;
+}
+
+.chat-prose p {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.chat-prose ul {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-left: 1.5rem !important;
+}
+
+.chat-prose li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.chat-prose strong {
+  font-weight: 700;
+  color: inherit !important;
+}
+
+.chat-prose a {
+  color: #3b82f6 !important; /* bright blue */
+  text-decoration: underline !important;
+  font-weight: 500 !important;
+}
+
+.chat-prose a:hover {
+  text-decoration: underline !important;
+  opacity: 0.8;
+}
+
+/* Adjust spacing for the first element in chat bubbles */
+.chat-prose > *:first-child {
+  margin-top: 0 !important;
+}
+
+/* Adjust spacing for the last element in chat bubbles */
+.chat-prose > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Sources section styling */
+.chat-prose h2:last-of-type {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
+  margin-top: 1rem !important;
+}
