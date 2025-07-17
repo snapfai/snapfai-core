@@ -294,7 +294,19 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
   
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom khi messages thay đổi
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]); // Chỉ chạy khi messages thay đổi
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const { register, handleSubmit, reset, formState: { isValid } } = useForm({
     defaultValues: {
       message: ''
@@ -1461,6 +1473,8 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
                 </div>
               </div>
             ))}
+            {/* Thêm div trống để làm điểm scroll */}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
       </CardContent>
