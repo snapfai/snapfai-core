@@ -8,6 +8,10 @@ import {
   useAppKitNetwork
 } from '@reown/appkit/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Wallet, CircleCheck, CircleX } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { getNativeTokenSymbol, extractChainIdFromCAIP } from '@/lib/chains'
 
 type BalanceResult = {
   data?: {
@@ -33,12 +37,6 @@ export default function WalletInfo() {
 
   useEffect(() => {
     if (isConnected && address) {
-      // Don't keep loading if we already have a balance
-      if (balance) {
-        setIsLoading(false);
-        return;
-      }
-      
       // Clear any previous balance when network changes
       setBalance(null);
       setRetryCount(0);
@@ -56,10 +54,14 @@ export default function WalletInfo() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isConnected, address, caipNetwork, retryCount, balance]);
+  }, [isConnected, address, caipNetwork]);
 
   const loadBalance = async () => {
     if (!isConnected || !address) return null;
+    
+    // Get the current chain ID and native token symbol
+    const currentChainId = caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1;
+    const nativeSymbol = getNativeTokenSymbol(currentChainId || 1);
     
     setIsLoading(true);
     try {
@@ -85,10 +87,10 @@ export default function WalletInfo() {
             
             setBalance({
               formatted,
-              symbol: 'ETH'
+              symbol: nativeSymbol
             });
             setIsLoading(false);
-            return { formatted, symbol: 'ETH' };
+            return { formatted, symbol: nativeSymbol };
           }
         } catch (err) {
           console.log('Error getting balance from provider:', err);
@@ -101,8 +103,13 @@ export default function WalletInfo() {
       
       if (result && result.isSuccess && result.data) {
         console.log('Balance loaded from AppKit:', result.data);
-        setBalance(result.data);
-        return result.data;
+        // Use the correct native symbol instead of the one from AppKit
+        const correctedBalance = {
+          ...result.data,
+          symbol: nativeSymbol
+        };
+        setBalance(correctedBalance);
+        return correctedBalance;
       } else {
         console.log('No balance data returned from fetchBalance');
         
@@ -110,7 +117,7 @@ export default function WalletInfo() {
         console.log('Using fallback balance data');
         const fallbackBalance = {
           formatted: '0.013',
-          symbol: 'ETH'
+          symbol: nativeSymbol
         };
         setBalance(fallbackBalance);
         setIsLoading(false);
@@ -122,7 +129,7 @@ export default function WalletInfo() {
       // Use hardcoded balance as last resort
       const fallbackBalance = {
         formatted: '0.013',
-        symbol: 'ETH'
+        symbol: nativeSymbol
       };
       setBalance(fallbackBalance);
       setIsLoading(false);

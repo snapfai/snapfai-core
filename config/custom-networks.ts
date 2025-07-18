@@ -43,24 +43,29 @@ export const sepoliaChain = defineChain({
   testnet: true,
 });
 
-// Define Arbitrum One custom network
+// Define Arbitrum custom network
 export const arbitrumOneChain = defineChain({
   id: 42161,
   caipNetworkId: 'eip155:42161',
   chainNamespace: 'eip155',
-  name: 'Arbitrum One',
+  name: 'Arbitrum',
   nativeCurrency: {
     decimals: 18,
-    name: 'Ethereum',
+    name: 'Ether',
     symbol: 'ETH',
   },
   rpcUrls: {
-    default: {
-      http: ['https://arb1.arbitrum.io/rpc'],
-    },
+    default: { http: ['https://arb1.arbitrum.io/rpc'] },
+    public: { http: ['https://arb1.arbitrum.io/rpc'] },
   },
   blockExplorers: {
     default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xca11bde05977b3631167028862be2a173976ca11',
+      blockCreated: 7654707,
+    },
   },
 });
 

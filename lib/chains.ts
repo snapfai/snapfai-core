@@ -53,7 +53,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
   polygon: {
     id: 137,
     name: 'Polygon',
-    symbol: 'MATIC',
+    symbol: 'POL',
     aliases: ['matic', 'poly', 'polygon mainnet'],
     rpcUrls: ['https://polygon-rpc.com'],
     blockExplorer: 'https://polygonscan.com'
@@ -67,6 +67,14 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
     blockExplorer: 'https://snowtrace.io'
   }
 };
+
+/**
+ * Get the native token symbol for a chain ID
+ */
+export function getNativeTokenSymbol(chainId: number): string {
+  const chainConfig = Object.values(SUPPORTED_CHAINS).find(chain => chain.id === chainId);
+  return chainConfig?.symbol || 'ETH'; // Default to ETH if chain not found
+}
 
 /**
  * Extract chain ID from CAIP network ID format

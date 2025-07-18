@@ -34,9 +34,11 @@ export default function Home() {
                     Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="dark:border-gray-700 dark:text-gray-200">
-                  Watch Demo
-                </Button>
+                <Link href="https://docs.snapfai.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
+                  <Button size="lg" variant="outline" className="dark:border-gray-700 dark:text-gray-200">
+                    Read Docs
+                  </Button>
+                </Link>
               </div>
             </div>
 

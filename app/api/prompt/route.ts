@@ -59,7 +59,37 @@ const tokenIdMap: Record<string, string> = {
   "usdt": "tether",
   "tether": "tether",
   "usdc": "usd-coin",
-  "sui": "sui"
+  "sui": "sui",
+  "ada": "cardano",
+  "cardano": "cardano",
+  "dot": "polkadot",
+  "polkadot": "polkadot",
+  "matic": "matic-network",
+  "polygon": "matic-network",
+  "avax": "avalanche-2",
+  "avalanche": "avalanche-2",
+  "ltc": "litecoin",
+  "litecoin": "litecoin",
+  "xrp": "ripple",
+  "ripple": "ripple",
+  "shib": "shiba-inu",
+  "shiba": "shiba-inu",
+  "shiba inu": "shiba-inu",
+  "atom": "cosmos",
+  "cosmos": "cosmos",
+  "trx": "tron",
+  "tron": "tron",
+  "etc": "ethereum-classic",
+  "ethereum classic": "ethereum-classic",
+  "fil": "filecoin",
+  "filecoin": "filecoin",
+  "near": "near",
+  "algo": "algorand",
+  "algorand": "algorand",
+  "vet": "vechain",
+  "vechain": "vechain",
+  "icp": "internet-computer",
+  "internet computer": "internet-computer"
 };
 
 // Map tokens to Binance symbols
@@ -82,6 +112,36 @@ const binanceSymbolMap: Record<string, string> = {
   "tether": "USDTUSDC",
   "usdc": "USDCUSDT",
   "sui": "SUIUSDT",
+  "ada": "ADAUSDT",
+  "cardano": "ADAUSDT",
+  "dot": "DOTUSDT",
+  "polkadot": "DOTUSDT",
+  "matic": "MATICUSDT",
+  "polygon": "MATICUSDT",
+  "avax": "AVAXUSDT",
+  "avalanche": "AVAXUSDT",
+  "ltc": "LTCUSDT",
+  "litecoin": "LTCUSDT",
+  "xrp": "XRPUSDT",
+  "ripple": "XRPUSDT",
+  "shib": "SHIBUSDT",
+  "shiba": "SHIBUSDT",
+  "shiba inu": "SHIBUSDT",
+  "atom": "ATOMUSDT",
+  "cosmos": "ATOMUSDT",
+  "trx": "TRXUSDT",
+  "tron": "TRXUSDT",
+  "etc": "ETCUSDT",
+  "ethereum classic": "ETCUSDT",
+  "fil": "FILUSDT",
+  "filecoin": "FILUSDT",
+  "near": "NEARUSDT",
+  "algo": "ALGOUSDT",
+  "algorand": "ALGOUSDT",
+  "vet": "VETUSDT",
+  "vechain": "VETUSDT",
+  "icp": "ICPUSDT",
+  "internet computer": "ICPUSDT"
 };
 
 // Cryptocurrency price fetching from CoinGecko (original function)
@@ -180,25 +240,28 @@ const fetchBinancePrice = async (symbol: string): Promise<{
 const isPriceQuery = (text: string): { isPriceQuery: boolean; token: string } => {
   // Common phrases used when asking for crypto prices
   const pricePatterns = [
-    /price of (\w+)/i,
-    /(\w+) price/i,
-    /how much is (\w+)/i,
-    /(\w+) worth/i,
-    /value of (\w+)/i,
-    /(\w+) value/i,
-    /(\w+) cost/i,
-    /cost of (\w+)/i,
-    /(\w+) rate/i,
-    /rate of (\w+)/i,
-    /(\w+) market price/i,
-    /(\w+) trading at/i,
-    /current (\w+) price/i
+    /price of (\$?[a-zA-Z0-9]+)/i,
+    /(\$?[a-zA-Z0-9]+) price/i,
+    /how much is (\$?[a-zA-Z0-9]+)/i,
+    /(\$?[a-zA-Z0-9]+) worth/i,
+    /value of (\$?[a-zA-Z0-9]+)/i,
+    /(\$?[a-zA-Z0-9]+) value/i,
+    /(\$?[a-zA-Z0-9]+) cost/i,
+    /cost of (\$?[a-zA-Z0-9]+)/i,
+    /(\$?[a-zA-Z0-9]+) rate/i,
+    /rate of (\$?[a-zA-Z0-9]+)/i,
+    /(\$?[a-zA-Z0-9]+) market price/i,
+    /(\$?[a-zA-Z0-9]+) trading at/i,
+    /current (\$?[a-zA-Z0-9]+) price/i
   ];
   
   for (const pattern of pricePatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      const token = match[1].toLowerCase();
+      // Clean the token name by removing dollar sign and converting to lowercase
+      const rawToken = match[1];
+      const token = rawToken.replace(/^\$/, '').toLowerCase();
+      
       // Check if this is a recognized token
       if (token in tokenIdMap) {
         return { isPriceQuery: true, token };
@@ -325,9 +388,9 @@ export async function POST(request: NextRequest) {
     // Check if this is a price query we can handle directly
     const { isPriceQuery: isDirectPriceQuery, token } = isPriceQuery(text);
     
-    // If this is a price query and we're using Live Search, use our specialized price tool
-    if (isDirectPriceQuery && useLiveSearch) {
-      console.log(`Detected price query for ${token}, using specialized price tool`);
+    // If this is a price query, ALWAYS use our specialized price tool (regardless of live search setting)
+    if (isDirectPriceQuery) {
+      console.log(`Detected price query for ${token}, using specialized price tool (Live Search: ${useLiveSearch ? 'ON' : 'OFF'})`);
       try {
         // Try Binance API first, fall back to CoinGecko if it fails
         let priceData;
@@ -362,7 +425,7 @@ export async function POST(request: NextRequest) {
           const changeDirection = priceData.change24h >= 0 ? "up" : "down";
           
           // Create a nicely formatted response
-          const message = `The current price of ${token.toUpperCase()} is ${formattedPrice}, ${changeDirection} ${formattedChange} in the last 24 hours. This data comes directly from ${priceData.source} and was last updated at ${new Date().toUTCString()}.`;
+          const message = `The current price of ${token.toUpperCase()} is ${formattedPrice}, ${changeDirection} ${formattedChange} in the last 24 hours. This is live market data from ${priceData.source === "Binance API" ? "Binance" : "CoinGecko"}.`;
           
           // Get appropriate citation URL based on the source
           let citationUrl = '';
@@ -384,7 +447,7 @@ export async function POST(request: NextRequest) {
               timestamp: priceData.timestamp
             },
             citations: [citationUrl],
-            hasLiveSearch: true,
+            hasLiveSearch: useLiveSearch, // Preserve the original live search setting
             isDirectPriceFetch: true
           });
         }

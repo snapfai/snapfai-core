@@ -12,10 +12,42 @@ import { ChevronDown } from 'lucide-react'
 import { networks } from '@/config'
 import { extractChainIdFromCAIP, getChainById } from '@/lib/chains'
 import { useToast } from '@/components/ui/use-toast'
+import { useEffect } from 'react'
 
 export default function NetworkSwitcher() {
   const { caipNetwork } = useAppKitNetwork()
   const { toast } = useToast()
+
+  // Clear any cached AppKit data on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Clear any cached network data that might include unsupported networks
+      const keysToRemove = Object.keys(localStorage).filter(key => 
+        key.includes('appkit') || 
+        key.includes('walletconnect') ||
+        key.includes('wc@') ||
+        key.includes('wagmi')
+      );
+      
+      if (keysToRemove.length > 0) {
+        console.log('Clearing cached AppKit data:', keysToRemove);
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      }
+      
+      // Also clear sessionStorage
+      const sessionKeysToRemove = Object.keys(sessionStorage).filter(key => 
+        key.includes('appkit') || 
+        key.includes('walletconnect') ||
+        key.includes('wc@') ||
+        key.includes('wagmi')
+      );
+      
+      if (sessionKeysToRemove.length > 0) {
+        console.log('Clearing cached session data:', sessionKeysToRemove);
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      }
+    }
+  }, []);
 
   // Only show when connected to a network
   if (!caipNetwork) {
@@ -123,12 +155,29 @@ export default function NetworkSwitcher() {
     }
   };
 
+  // Helper function to truncate chain names for mobile
+  const truncateChainName = (name: string) => {
+    if (name.length > 10) {
+      return name
+        .replace('Arbitrum One', 'Arbitrum')
+        .replace('Ethereum Mainnet', 'Ethereum')
+        .replace('Polygon Mainnet', 'Polygon')
+        .replace('Avalanche Network C-Chain', 'Avalanche')
+        .replace('Optimism Mainnet', 'Optimism')
+        .replace('Base Mainnet', 'Base');
+    }
+    return name;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-1">
-          {caipNetwork.name}
-          <ChevronDown className="h-4 w-4" />
+        <Button variant="outline" size="sm" className="flex items-center gap-1 max-w-[120px] sm:max-w-none">
+          <span className="truncate">
+            <span className="sm:hidden">{truncateChainName(caipNetwork.name)}</span>
+            <span className="hidden sm:inline">{caipNetwork.name}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 flex-shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Wallet, CircleCheck, CircleX } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { getNativeTokenSymbol, extractChainIdFromCAIP } from '@/lib/chains'
 
 type BalanceResult = {
   data?: {
@@ -35,12 +36,6 @@ export default function WalletSummary() {
 
   useEffect(() => {
     if (isConnected && address) {
-      // Don't keep loading if we already have a balance
-      if (balance) {
-        setIsLoading(false);
-        return;
-      }
-      
       // Clear any previous balance when network changes
       setBalance(null);
       setRetryCount(0);
@@ -58,10 +53,14 @@ export default function WalletSummary() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isConnected, address, caipNetwork, retryCount, balance]);
+  }, [isConnected, address, caipNetwork]);
 
   const loadBalance = async () => {
     if (!isConnected || !address) return null;
+    
+    // Get the current chain ID and native token symbol
+    const currentChainId = caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1;
+    const nativeSymbol = getNativeTokenSymbol(currentChainId || 1);
     
     setIsLoading(true);
     try {
@@ -87,10 +86,10 @@ export default function WalletSummary() {
             
             setBalance({
               formatted,
-              symbol: 'ETH'
+              symbol: nativeSymbol
             });
             setIsLoading(false);
-            return { formatted, symbol: 'ETH' };
+            return { formatted, symbol: nativeSymbol };
           }
         } catch (err) {
           console.log('Error getting balance from provider:', err);
@@ -103,8 +102,13 @@ export default function WalletSummary() {
       
       if (result && result.isSuccess && result.data) {
         console.log('Balance loaded from AppKit:', result.data);
-        setBalance(result.data);
-        return result.data;
+        // Use the correct native symbol instead of the one from AppKit
+        const correctedBalance = {
+          ...result.data,
+          symbol: nativeSymbol
+        };
+        setBalance(correctedBalance);
+        return correctedBalance;
       } else {
         console.log('No balance data returned from fetchBalance');
         
@@ -112,7 +116,7 @@ export default function WalletSummary() {
         console.log('Using fallback balance data');
         const fallbackBalance = {
           formatted: '0.013',
-          symbol: 'ETH'
+          symbol: nativeSymbol
         };
         setBalance(fallbackBalance);
         setIsLoading(false);
@@ -124,7 +128,7 @@ export default function WalletSummary() {
       // Use hardcoded balance as last resort
       const fallbackBalance = {
         formatted: '0.013',
-        symbol: 'ETH'
+        symbol: nativeSymbol
       };
       setBalance(fallbackBalance);
       setIsLoading(false);
@@ -147,6 +151,14 @@ export default function WalletSummary() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
 
+  const truncateChainName = (name: string) => {
+    // Truncate long chain names for mobile
+    if (name.length > 8) {
+      return name.replace('Arbitrum One', 'Arbitrum').replace('Ethereum Mainnet', 'Ethereum')
+    }
+    return name
+  }
+
   const walletIconUrl = walletInfo?.icon || ''
 
   return (
@@ -161,12 +173,14 @@ export default function WalletSummary() {
               ) : (
                 <Wallet className="h-4 w-4 mr-1" />
               )}
-              <span>{truncateAddress(address)}</span>
+              <span className="hidden sm:inline">{truncateAddress(address)}</span>
+              <span className="sm:hidden">{address.slice(0, 4)}...{address.slice(-2)}</span>
             </div>
             
             {caipNetwork && (
-              <Badge variant="outline" className="text-xs py-0 h-5">
-                {caipNetwork.name}
+              <Badge variant="outline" className="text-xs py-0 h-5 max-w-[80px] sm:max-w-none truncate">
+                <span className="sm:hidden">{truncateChainName(caipNetwork.name)}</span>
+                <span className="hidden sm:inline">{caipNetwork.name}</span>
               </Badge>
             )}
             
@@ -179,53 +193,14 @@ export default function WalletSummary() {
             ) : null}
           </div>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="w-60 p-3">
-          <div className="space-y-2">
-            <div className="font-semibold">Wallet Information</div>
-            <div className="text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Address:</span>
-                <span className="font-mono">{truncateAddress(address)}</span>
-              </div>
-              
-              {walletInfo?.name && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Provider:</span>
-                  <span>{walletInfo.name}</span>
-                </div>
-              )}
-              
-              {caipNetwork && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Network:</span>
-                  <span>{caipNetwork.name}</span>
-                </div>
-              )}
-              
-              {isLoading ? (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Balance:</span>
-                  <span className="animate-pulse">Loading...</span>
-                </div>
-              ) : balance ? (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Balance:</span>
-                  <span>{balance.formatted} {balance.symbol}</span>
-                </div>
-              ) : (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Balance:</span>
-                  <span>Not available</span>
-                </div>
-              )}
-              
-              {embeddedWalletInfo?.accountType && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Account Type:</span>
-                  <span className="capitalize">{embeddedWalletInfo.accountType}</span>
-                </div>
-              )}
-            </div>
+        <TooltipContent>
+          <div className="space-y-1">
+            <p><strong>Address:</strong> {address}</p>
+            <p><strong>Network:</strong> {caipNetwork?.name || 'Unknown'}</p>
+            <p><strong>Wallet:</strong> {walletInfo?.name || 'Unknown'}</p>
+            {balance && (
+              <p><strong>Balance:</strong> {balance.formatted} {balance.symbol}</p>
+            )}
           </div>
         </TooltipContent>
       </Tooltip>

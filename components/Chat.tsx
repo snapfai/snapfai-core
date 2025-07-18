@@ -18,7 +18,7 @@ import { useSendTransaction, useWalletClient } from 'wagmi';
 import { parseEther } from 'viem';
 // Import types for better TypeScript support
 import type { Hex } from 'viem';
-import { getChainId, getChainByName, extractChainIdFromCAIP } from '@/lib/chains';
+import { getChainId, getChainByName, extractChainIdFromCAIP, getNativeTokenSymbol } from '@/lib/chains';
 import { resolveToken, getTokensForChain } from '@/lib/tokens';
 
 // Add rehype-raw to support HTML in markdown for links
@@ -91,6 +91,35 @@ const TOKENS = [
   }
 ];
 
+// Swap Confirmation Buttons Component
+const SwapConfirmationButtons = ({ 
+  onConfirm, 
+  onCancel, 
+  disabled = false 
+}: { 
+  onConfirm: () => void; 
+  onCancel: () => void; 
+  disabled?: boolean; 
+}) => (
+  <div className="flex gap-3 mt-4 mb-2">
+    <Button 
+      onClick={onConfirm}
+      disabled={disabled}
+      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+    >
+      Yes, Execute Swap
+    </Button>
+    <Button 
+      onClick={onCancel}
+      disabled={disabled}
+      variant="outline"
+      className="flex-1 border-red-300 text-red-600 hover:bg-red-50 font-medium py-2 px-4 rounded-lg transition-colors"
+    >
+      No, Cancel
+    </Button>
+  </div>
+);
+
 const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -98,28 +127,39 @@ const Chat = () => {
       role: 'assistant',
       content: `# Welcome to SnapFAI
 
-**Your Smart, Easy, and Magical DeFi Experience**
+**Your AI-Powered DeFi Assistant**
 
-SnapFAI transforms how you interact with decentralized finance through natural language. I can help you:
+I can help you navigate DeFi through natural language conversation.
 
-- **Swap tokens** across Ethereum & Arbitrum with the best rates
-- **Borrow & earn** through platforms like Aave, Compound, and SparkFi
-- **Set up triggers** based on price, time, or gas conditions
-- **Get real-time insights** on tokens and market sentiment
+## What I Can Do Right Now
+
+**✅ Token Swaps**
+- Swap tokens across Ethereum, Arbitrum, Base, Avalanche, Optimism
+- Get real-time quotes from multiple DEXs
+- Execute swaps directly through your wallet
+
+**✅ Market Information**
+- Get current token prices and market data
+- Answer questions about DeFi protocols
+- Provide real-time insights with web search
 
 ## How to Use SnapFAI
 
-Simply tell me what you want to do in plain language. For example:
+Simply tell me what you want to do in plain language:
 
+**Swap Examples:**
 - "Swap 500 USDT to ETH on Arbitrum"
-- "Find the best lending rate for 10 ETH"
-- "Set a trigger to buy ETH when price drops below $3,000"
+- "What's the price of 1000 USDC in ETH?"
+- "Swap 0.1 ETH to USDC"
 
-I'll analyze multiple protocols to find you the best options, and you'll always see exactly what you'll get before confirming any transaction.
+**Information Examples:**
+- "What's the current price of ETH?"
+- "Tell me about Uniswap"
+- "What are the gas fees on Ethereum right now?"
 
-**Pro tip:** For the best experience, be specific about amounts and tokens. If you don't specify a chain, I'll default to Ethereum.
+**Pro tip:** Connect your wallet for the best experience. I'll detect your network and default to it for swaps.
 
-Ready to do DeFi like a snap? Go ahead and type your first request!`,
+Ready to get started? Just type what you'd like to do!`,
       timestamp: new Date()
     }
   ]);
@@ -179,15 +219,9 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     isBalanceLoadingRef.current = isBalanceLoading;
   }, [messages.length, walletInfo, caipNetwork, balance, isBalanceLoading]);
 
-  // Load balance when wallet connected
+  // Load balance when wallet connected or network changes
   useEffect(() => {
     if (isConnected && address) {
-      // Don't keep loading if we already have a balance
-      if (balance) {
-        setIsBalanceLoading(false);
-        return;
-      }
-      
       // Clear any previous balance when network changes
       setBalance(null);
       setRetryCount(0);
@@ -205,10 +239,14 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isConnected, address, caipNetwork, retryCount, balance]);
+  }, [isConnected, address, caipNetwork]);
 
   const loadBalance = async () => {
     if (!isConnected || !address) return null;
+    
+    // Get the current chain ID and native token symbol
+    const currentChainId = caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1;
+    const nativeSymbol = getNativeTokenSymbol(currentChainId || 1);
     
     setIsBalanceLoading(true);
     try {
@@ -234,10 +272,10 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
             
             setBalance({
               formatted,
-              symbol: 'ETH'
+              symbol: nativeSymbol
             });
             setIsBalanceLoading(false);
-            return { formatted, symbol: 'ETH' };
+            return { formatted, symbol: nativeSymbol };
           }
         } catch (err) {
           console.log('Error getting balance from provider:', err);
@@ -256,8 +294,13 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
       
       if (result && result.isSuccess && result.data) {
         console.log('Balance loaded from AppKit:', result.data);
-        setBalance(result.data);
-        return result.data;
+        // Use the correct native symbol instead of the one from AppKit
+        const correctedBalance = {
+          ...result.data,
+          symbol: nativeSymbol
+        };
+        setBalance(correctedBalance);
+        return correctedBalance;
       } else {
         console.log('No balance data returned from fetchBalance');
         
@@ -265,7 +308,7 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
         console.log('Using fallback balance data');
         const fallbackBalance = {
           formatted: '0.013',
-          symbol: 'ETH'
+          symbol: nativeSymbol
         };
         setBalance(fallbackBalance);
         setIsBalanceLoading(false);
@@ -277,7 +320,7 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
       // Use hardcoded balance as last resort
       const fallbackBalance = {
         formatted: '0.013',
-        symbol: 'ETH'
+        symbol: nativeSymbol
       };
       setBalance(fallbackBalance);
       setIsBalanceLoading(false);
@@ -325,13 +368,7 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
   
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to bottom khi messages thay đổi
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]); // Chỉ chạy khi messages thay đổi
-
+  
   const { register, handleSubmit, reset, formState: { isValid } } = useForm({
     defaultValues: {
       message: ''
@@ -402,14 +439,48 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     return newMessage;
   };
 
-  const updateMessage = (id: string, content: string, isLoading = false) => {
+  const updateMessage = (id: string, content: string, isLoading = false): Message | undefined => {
+    let updatedMessage: Message | undefined = undefined;
+    
     setMessages(prev => 
-      prev.map(message => 
-        message.id === id ? { ...message, content, isLoading } : message
-      )
+      prev.map(message => {
+        if (message.id === id) {
+          updatedMessage = { ...message, content, isLoading };
+          return updatedMessage;
+        }
+        return message;
+      })
     );
+    
     // Scroll to bottom when message is updated (for AI typing effect)
     scrollToBottom();
+    
+    return updatedMessage;
+  };
+
+  // Add state for showing confirmation buttons
+  const [showConfirmationButtons, setShowConfirmationButtons] = useState(false);
+  const [confirmationMessageId, setConfirmationMessageId] = useState<string | null>(null);
+
+  // Helper function to get current chain name from connected network
+  const getCurrentChainName = (): string => {
+    if (!caipNetwork?.id) return 'ethereum';
+    
+    const currentChainId = extractChainIdFromCAIP(caipNetwork.id);
+    if (!currentChainId) return 'ethereum';
+    
+    // Map chain IDs to chain names
+    const chainIdToName: Record<number, string> = {
+      1: 'ethereum',
+      42161: 'arbitrum',
+      8453: 'base',
+      137: 'polygon',
+      43114: 'avalanche',
+      10: 'optimism',
+      11155111: 'sepolia'
+    };
+    
+    return chainIdToName[currentChainId] || 'ethereum';
   };
 
   // Store the last swap request for confirmation
@@ -418,13 +489,6 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     tokenIn: string;
     tokenOut: string;
     chain: string;
-  } | null>(null);
-
-  // Store pending approval request
-  const [pendingApprovalRequest, setPendingApprovalRequest] = useState<{
-    tokenAddress: string;
-    tokenSymbol: string;
-    spenderAddress: string;
   } | null>(null);
 
   // Track transaction status
@@ -585,14 +649,20 @@ Please check manually on [${
   // Update handleSwapRequest to get a quote first and cache it
   const handleSwapRequest = async (tokenIn: string, tokenOut: string, amount: number, chain: string) => {
     // Add loading message directly from this function
-    const loadingMessage = addMessage('assistant', 'Getting the latest price quote...', true);
+    const currentChain = getCurrentChainName();
+    const isUsingCurrentChain = chain === currentChain;
+    const chainMessage = isUsingCurrentChain 
+      ? `on your current network (${chain})` 
+      : `on ${chain}`;
+    
+    const loadingMessage = addMessage('assistant', `Getting the latest price quote for ${amount} ${tokenIn} to ${tokenOut} ${chainMessage}...`, true);
     
     // Get a real-time price quote first
     try {
       // Get chain ID from chain name
       const chainId = getChainId(chain);
       if (!chainId) {
-        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Polygon, Avalanche, or Sepolia.`, false);
+        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Avalanche, or Optimism.`, false);
         return;
       }
       
@@ -685,13 +755,29 @@ Please check manually on [${
       }
       
       // Update the message with the price quote and ask for confirmation
-      updateMessage(
+      const confirmationMessage = updateMessage(
         loadingMessage.id,
-        `Based on current rates, you can swap ${amount} ${tokenIn} for approximately **${formattedBuyAmount} ${tokenOut}** on ${chain}.${priceText}${sourceText}
-        
-Would you like me to execute this swap for you? (Reply with yes/no)`,
+        `## 🔄 **Swap Confirmation**
+
+**You're about to swap:**
+- **From:** ${amount} ${tokenIn}
+- **To:** ~${formattedBuyAmount} ${tokenOut}
+- **Network:** ${chain}${priceText}${sourceText}
+
+**Ready to execute this swap?**
+
+You can click the buttons below or simply type "yes" or "no":`,
         false
       );
+      
+      // Debug logging
+      console.log('Confirmation message created:', confirmationMessage);
+      console.log('Loading message ID:', loadingMessage.id);
+      
+      // Show confirmation buttons
+      setShowConfirmationButtons(true);
+      // Use the loading message ID directly since updateMessage updates the existing message
+      setConfirmationMessageId(loadingMessage.id);
       
       // Store the pending swap request for confirmation
       setPendingSwapRequest({
@@ -737,13 +823,20 @@ You can use this information to manually submit the transaction through your wal
       return;
     }
     
-    // Check if user is confirming a swap
-    if (pendingSwapRequest && /^(yes|yeah|sure|ok|proceed|go ahead|y)$/i.test(userMessage)) {
+    // Check if user is confirming a swap - improved pattern matching
+    const yesPatterns = /^(yes|yeah|yep|sure|ok|okay|proceed|go ahead|confirm|execute|do it|y)$/i;
+    const noPatterns = /^(no|nope|nah|cancel|don't|dont|stop|abort|skip|n)$/i;
+    
+    if (pendingSwapRequest && yesPatterns.test(userMessage)) {
       // User confirmed the swap request
       const { tokenIn, tokenOut, amount, chain } = pendingSwapRequest;
       
       // Clear the form input
       reset();
+      
+      // Hide confirmation buttons
+      setShowConfirmationButtons(false);
+      setConfirmationMessageId(null);
       
       // Execute the swap
       executeSwap(tokenIn, tokenOut, amount, chain);
@@ -751,12 +844,16 @@ You can use this information to manually submit the transaction through your wal
       // Clear the pending request
       setPendingSwapRequest(null);
       return;
-    } else if (pendingSwapRequest && /^(no|nope|cancel|don't|dont|n)$/i.test(userMessage)) {
+    } else if (pendingSwapRequest && noPatterns.test(userMessage)) {
       // User declined the swap request
       addMessage('assistant', "No problem! Let me know if you'd like to try a different swap or if there's anything else I can help with.");
       
       // Clear the form input
       reset();
+      
+      // Hide confirmation buttons
+      setShowConfirmationButtons(false);
+      setConfirmationMessageId(null);
       
       // Clear the pending request
       setPendingSwapRequest(null);
@@ -783,7 +880,7 @@ You can use this information to manually submit the transaction through your wal
         const tokenOut = swapMatch[3];
         
         // Improved chain detection using the centralized chain system
-        let chain = 'ethereum'; // default
+        let chain = getCurrentChainName(); // Use current connected chain as default
         const lowerMessage = userMessage.toLowerCase();
         
         // Check for supported chains using the centralized configuration
@@ -798,7 +895,7 @@ You can use this information to manually submit the transaction through your wal
               const { SUPPORTED_CHAINS } = await import('@/lib/chains');
               chain = Object.keys(SUPPORTED_CHAINS).find(
                 key => SUPPORTED_CHAINS[key] === chainConfig
-              ) || 'ethereum';
+              ) || getCurrentChainName(); // Fallback to current chain instead of ethereum
               break;
             }
           }
@@ -873,7 +970,8 @@ You can use this information to manually submit the transaction through your wal
           userId,
           useLiveSearch,
           searchSources: useLiveSearch ? selectedSources : null,
-          walletInfo: walletInfoData
+          walletInfo: walletInfoData,
+          currentChain: getCurrentChainName() // Add current chain context
         })
       });
       
@@ -953,7 +1051,8 @@ You can use this information to manually submit the transaction through your wal
     }
   };
   
-  const handleSwapConfirm = async (confirm: 'Yes' | 'No') => {
+  // Handle old SwapConfirmation component (legacy)
+  const handleLegacySwapConfirmation = (confirm: 'Yes' | 'No') => {
     setShowSwapConfirmation(false);
     
     if (confirm === 'No') {
@@ -967,83 +1066,73 @@ You can use this information to manually submit the transaction through your wal
     
     const loadingMessage = addMessage('assistant', 'Processing your swap...', true);
     
-    try {
-      const response = await fetch('/api/swap/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId,
-          confirm
-        })
-      });
+    // Legacy swap execution logic would go here
+    updateMessage(loadingMessage.id, 'Legacy swap confirmation handled.');
+  };
+
+  // Handle confirmation button clicks (new system)
+  const handleSwapConfirmation = (confirm: boolean) => {
+    if (!pendingSwapRequest) return;
+    
+    const { tokenIn, tokenOut, amount, chain } = pendingSwapRequest;
+    
+    // Hide confirmation buttons
+    setShowConfirmationButtons(false);
+    setConfirmationMessageId(null);
+    
+    if (confirm) {
+      // Add user confirmation message
+      addMessage('user', 'Yes, execute the swap');
       
-      if (!response.ok) {
-        throw new Error('Failed to execute swap');
-      }
-      
-      const result = await response.json();
-      
-      updateMessage(loadingMessage.id, result.message);
-      
-      if (result.success && result.transaction) {
-        // In a real app, here we would connect to the user's wallet
-        // and send the transaction for signing
-        toast({
-          title: 'Swap Ready',
-          description: 'Transaction is ready for signing in your wallet.',
-        });
-      }
-    } catch (error) {
-      console.error('Error executing swap:', error);
-      updateMessage(loadingMessage.id, 'Sorry, I encountered an error while executing your swap. Please try again.');
-      
-      toast({
-        title: 'Error',
-        description: 'Failed to execute the swap. Please try again.',
-        variant: 'destructive',
-      });
+      // Execute the swap
+      executeSwap(tokenIn, tokenOut, amount, chain);
+    } else {
+      // Add user cancellation message
+      addMessage('user', 'No, cancel the swap');
+      addMessage('assistant', "No problem! Let me know if you'd like to try a different swap or if there's anything else I can help with.");
     }
+    
+    // Clear the pending request
+    setPendingSwapRequest(null);
   };
 
   // Generate the welcome message with current wallet info
   const generateWelcomeMessage = () => {
-    return `# Welcome to SnapFAI
+    const currentChain = getCurrentChainName();
+    
+    // Get tokens for the current chain
+    const currentChainId = caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1;
+    const currentTokens = getTokensForChain(currentChainId || 1);
+    const tokenSymbols = currentTokens.map(token => token.symbol).join(', ');
+    
+    return `# Welcome to SnapFAI! 🤖
 
-**Your Smart, Easy, and Magical DeFi Experience**
+I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get market data, and answer questions about DeFi protocols.
 
-I see you've connected your wallet! 👋
+## What I Can Do Right Now
 
-${walletInfoRef.current?.name ? `- Using **${walletInfoRef.current.name}** wallet` : ''}
-${networkRef.current?.name ? `- Connected to **${networkRef.current.name}**` : ''}
-- Current balance: ${isBalanceLoadingRef.current 
-  ? 'Loading...' 
-  : balanceRef.current && balanceRef.current.formatted 
-    ? `**${balanceRef.current.formatted} ${balanceRef.current.symbol}**` 
-    : 'Not available'}
+**✅ Token Swaps**
+- Swap tokens across Ethereum, Arbitrum, Base, Avalanche, Optimism
+- Get real-time quotes from multiple DEXs
+- Execute swaps directly through your wallet
 
-SnapFAI transforms how you interact with decentralized finance through natural language. I can help you:
+**✅ Market Information**
+- Get current token prices and market data
+- Answer questions about DeFi protocols
+- Provide real-time insights with web search
 
-- **Swap tokens** across Ethereum & Arbitrum with the best rates
-- **Borrow & earn** through platforms like Aave, Compound, and SparkFi
-- **Set up triggers** based on price, time, or gas conditions
-- **Get real-time insights** on tokens and market sentiment
+## Currently Connected: **${currentChain}**
 
-## How to Use SnapFAI
+**Available Tokens on ${currentChain}:**
+${tokenSymbols}
 
-Simply tell me what you want to do in plain language. For example:
+## Quick Start
+- **Swap tokens**: "Swap 100 USDC to ETH"
+- **Check prices**: "What's the price of $ETH?"
+- **Get quotes**: "Get a quote for 50 USDT to LINK"
 
-- "Swap 100 USDT to ETH on Arbitrum"
-- "Find the best lending rate for 10 ETH"
-- "Set a trigger to buy ETH when price drops below $3,000"
-
-I'll analyze multiple protocols to find you the best options, and you'll always see exactly what you'll get before confirming any transaction.
-
-**Pro tip:** For the best experience, be specific about amounts and tokens. If you don't specify a chain, I'll default to Ethereum.
-
-  Ready to do DeFi like a snap? Go ahead and type your first request!`;
-    }
+Switch networks using the dropdown in the top right to access tokens on other chains!`;
+  };
 
   // Send transaction helper function (to be used by executeSwap)
   const sendSwapTransaction = async (normalizedResult: any, tokenIn: string, tokenOut: string, amount: number, chain: string, formattedBuyAmount: string) => {
@@ -1332,7 +1421,7 @@ If the issue persists:
       // Get chain ID from chain name
       const chainId = getChainId(chain);
       if (!chainId) {
-        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Polygon, Avalanche, or Sepolia.`, false);
+        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Avalanche, or Optimism.`, false);
         return;
       }
       
@@ -1813,7 +1902,7 @@ Please approve the transaction in your wallet to complete the swap.`,
           } else {
             console.log('Network switch incomplete, current network:', currentChainId);
             // Still not on the correct network, show message
-            const targetNetworkName = pendingNetworkSwitch.targetChainId === 42161 ? 'Arbitrum One' : 
+            const targetNetworkName = pendingNetworkSwitch.targetChainId === 42161 ? 'Arbitrum' :
                                     pendingNetworkSwitch.targetChainId === 42170 ? 'Arbitrum Nova' : 
                                     pendingNetworkSwitch.chain;
             
@@ -1901,8 +1990,8 @@ Please approve the transaction in your wallet to complete the swap.`,
       
       // Define network configurations
       const networkConfigs = {
-        42161: { // Arbitrum One
-          chainName: 'Arbitrum One',
+        42161: { // Arbitrum
+          chainName: 'Arbitrum',
           rpcUrl: 'https://arb1.arbitrum.io/rpc',
           blockExplorer: 'https://arbiscan.io',
           symbol: 'ETH'
@@ -1929,7 +2018,7 @@ Please approve the transaction in your wallet to complete the swap.`,
           chainName: 'Polygon Mainnet',
           rpcUrl: 'https://polygon-rpc.com',
           blockExplorer: 'https://polygonscan.com',
-          symbol: 'MATIC'
+          symbol: 'POL'
         },
         43114: { // Avalanche
           chainName: 'Avalanche Network C-Chain',
@@ -2008,32 +2097,148 @@ Please approve the transaction in your wallet to complete the swap.`,
     }
   };
 
+  // Helper function to add quick action suggestions
+  const addQuickActionSuggestions = (originalAmount: number, tokenIn: string, tokenOut: string, chain: string) => {
+    const suggestions = [
+      `Try ${originalAmount * 0.5} ${tokenIn} to ${tokenOut}`,
+      `Try ${originalAmount * 2} ${tokenIn} to ${tokenOut}`,
+      `Swap ${tokenIn} to USDC instead`,
+      `Check rates on different network`
+    ];
+    
+    const suggestionMessage = `**Quick suggestions:**
+${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+Or tell me what you'd like to do differently!`;
+    
+    addMessage('assistant', suggestionMessage);
+  };
+
+  // Enhanced error handling with suggestions
+  const handleSwapError = (error: string, amount: number, tokenIn: string, tokenOut: string, chain: string) => {
+    addMessage('assistant', `❌ **Swap Error:** ${error}
+
+**What would you like to try?**
+• Different amount (try ${amount * 0.5} or ${amount * 2})
+• Different token pair
+• Different network
+• Check back later
+
+Just let me know what you'd prefer!`);
+  };
+
   return (
     <Card className="w-full h-[calc(100vh-180px)] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-xl">SnapFAI Chat</CardTitle>
-        <div className="flex items-center gap-4">
-          <WalletSummary />
-          {isNetworkSwitching && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900 rounded-full">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm font-medium">Switching Network...</span>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSearchOptions(!showSearchOptions)}
-            className={showSearchOptions ? 'bg-primary/10' : ''}
-          >
-            {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
-          </Button>
+        <CardTitle className="text-lg sm:text-xl">SnapFAI Agent</CardTitle>
+        
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Mobile-only elements */}
+          <div className="flex items-center gap-2 sm:hidden">
+            {/* Mobile Live Search Toggle - Icon Only */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSearchOptions(!showSearchOptions)}
+              className={`p-2 ${showSearchOptions ? 'bg-primary/10' : ''} relative`}
+              title={useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {useLiveSearch && (
+                <div className="absolute -top-1 -right-1 h-2 w-2 bg-green-500 rounded-full"></div>
+              )}
+            </Button>
+          </div>
+          
+          {/* Desktop-only elements */}
+          <div className="hidden sm:flex items-center gap-4">
+            <WalletSummary />
+            {isNetworkSwitching && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900 rounded-full">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm font-medium">Switching Network...</span>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSearchOptions(!showSearchOptions)}
+              className={showSearchOptions ? 'bg-primary/10' : ''}
+            >
+              {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       
+      {/* Mobile wallet summary - separate row */}
+      <div className="flex items-center justify-between px-6 pb-2 sm:hidden">
+        <WalletSummary />
+        {isNetworkSwitching && (
+          <div className="flex items-center gap-2 px-2 py-1 bg-orange-100 dark:bg-orange-900 rounded-full">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span className="text-xs font-medium">Switching...</span>
+          </div>
+        )}
+      </div>
+      
       {showSearchOptions && (
-        <div className="px-6 pb-2 border-b">
-          <div className="flex flex-wrap gap-3 items-center">
+        <div className="px-4 pb-3 border-b bg-gray-50 dark:bg-gray-900/50">
+          {/* Mobile Search Options */}
+          <div className="md:hidden space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Live Search</span>
+              <label className="inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox"
+                  checked={useLiveSearch}
+                  onChange={(e) => setUseLiveSearch(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            
+            {useLiveSearch && (
+              <div className="space-y-2">
+                <div className="text-xs text-gray-600 dark:text-gray-400">Sources:</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.web}
+                      onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">Web</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.news}
+                      onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">News</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <input 
+                      type="checkbox" 
+                      checked={searchSources.x}
+                      onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm">X</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Desktop Search Options */}
+          <div className="hidden md:flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-medium">Live Search:</span>
               <div className="flex items-center">
@@ -2047,8 +2252,8 @@ Please approve the transaction in your wallet to complete the swap.`,
                   <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              </div>
-              
+            </div>
+            
             {useLiveSearch && (
               <>
                 <div className="text-sm text-muted-foreground">Sources:</div>
@@ -2084,19 +2289,19 @@ Please approve the transaction in your wallet to complete the swap.`,
               </>
             )}
           </div>
-                </div>
-              )}
-              
+        </div>
+      )}
+      
       <CardContent className="flex-1 p-0 overflow-hidden">
-        <ScrollArea ref={scrollAreaRef} className="h-full px-4 py-4">
-          <div className="space-y-4 mb-4">
+        <ScrollArea ref={scrollAreaRef} className="h-full px-3 sm:px-4 py-3 sm:py-4">
+          <div className="space-y-3 sm:space-y-4 mb-4">
             {messages.map((message) => (
               <div 
                 key={message.id} 
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div 
-                  className={`max-w-[85%] p-3 rounded-lg ${
+                  className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-3 rounded-lg ${
                     message.role === 'user' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
@@ -2105,19 +2310,39 @@ Please approve the transaction in your wallet to complete the swap.`,
                   {message.isLoading ? (
                     <div className="flex items-center space-x-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>{message.content}</span>
+                      <span className="text-sm sm:text-base">{message.content}</span>
                     </div>
                   ) : (
-                    <div className="prose dark:prose-invert prose-sm max-w-none break-words">
-                      <ReactMarkdown 
-                        rehypePlugins={[rehypeRaw]}
-                        components={{
-                          a: CustomLink
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
+                    <>
+                      <div className="prose dark:prose-invert prose-sm sm:prose-sm max-w-none break-words">
+                        <ReactMarkdown 
+                          rehypePlugins={[rehypeRaw]}
+                          components={{
+                            a: CustomLink
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                      {/* Show confirmation buttons if this is the confirmation message */}
+                      {showConfirmationButtons && confirmationMessageId === message.id && (
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4 mb-2">
+                          <Button 
+                            onClick={() => handleSwapConfirmation(true)}
+                            className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 sm:py-2 px-4 rounded-lg transition-colors min-h-[44px] text-base sm:text-sm"
+                          >
+                            Yes, Execute Swap
+                          </Button>
+                          <Button 
+                            onClick={() => handleSwapConfirmation(false)}
+                            variant="outline"
+                            className="w-full sm:flex-1 border-red-300 text-red-600 hover:bg-red-50 font-medium py-3 sm:py-2 px-4 rounded-lg transition-colors min-h-[44px] text-base sm:text-sm"
+                          >
+                            No, Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -2129,34 +2354,90 @@ Please approve the transaction in your wallet to complete the swap.`,
       </CardContent>
       
       <CardFooter className="pt-2 pb-4 px-4">
-        <form onSubmit={handleSubmit(handleSendMessage)} className="w-full flex gap-2">
+        <form onSubmit={handleSubmit(handleSendMessage)} className="w-full">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 relative">
               <Textarea
                 {...register('message', { required: true })}
-            placeholder="Type your message..."
-            className="min-h-[50px] flex-1 resize-none"
-            disabled={isProcessing}
+                placeholder="Type your message..."
+                className="min-h-[44px] md:min-h-[50px] flex-1 resize-none pr-12 md:pr-4 text-base md:text-sm"
+                disabled={isProcessing}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSubmit(handleSendMessage)();
                   }
                 }}
+                rows={1}
+                style={{ 
+                  fontSize: '16px', // Prevents zoom on iOS
+                  lineHeight: '1.5'
+                }}
               />
+              {/* Mobile Send Button - Inside textarea on mobile */}
               <Button 
                 type="submit" 
                 size="icon"
                 disabled={isProcessing || !isValid}
-            className="h-[50px] w-[50px]"
-          >
-            {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                className="absolute right-2 bottom-2 h-8 w-8 md:hidden rounded-full"
+              >
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
-          </form>
-        </CardFooter>
+            </div>
+            
+            {/* Desktop Send Button - Outside textarea */}
+            <Button 
+              type="submit" 
+              size="icon"
+              disabled={isProcessing || !isValid}
+              className="hidden md:flex h-[50px] w-[50px]"
+            >
+              {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            </Button>
+          </div>
+          
+          {/* Quick Actions - Both Mobile and Desktop: 2 buttons */}
+          <div className="flex gap-2 mt-2 w-full">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const priceText = 'What\'s the price of $ETH?';
+                setValue('message', priceText, { shouldValidate: true });
+                const textarea = document.querySelector('textarea');
+                if (textarea) {
+                  textarea.focus();
+                }
+              }}
+              className="flex-1 sm:flex-none text-xs px-3 py-1 h-7 md:h-8 md:px-4 md:text-sm"
+            >
+              💰 Price
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const swapText = 'Swap 100 USDT to ETH';
+                setValue('message', swapText, { shouldValidate: true });
+                const textarea = document.querySelector('textarea');
+                if (textarea) {
+                  textarea.focus();
+                }
+              }}
+              className="flex-1 sm:flex-none text-xs px-3 py-1 h-7 md:h-8 md:px-4 md:text-sm"
+            >
+              🔄 Swap
+            </Button>
+          </div>
+        </form>
+      </CardFooter>
       
       {showSwapConfirmation && swapDetails && (
         <SwapConfirmation
           details={swapDetails}
-          onConfirm={handleSwapConfirm}
+          onConfirm={handleLegacySwapConfirmation}
           onClose={() => setShowSwapConfirmation(false)} 
         />
       )}
