@@ -18,9 +18,29 @@ import { useSendTransaction, useWalletClient } from 'wagmi';
 import { parseEther } from 'viem';
 // Import types for better TypeScript support
 import type { Hex } from 'viem';
+import { getChainId, getChainByName, extractChainIdFromCAIP } from '@/lib/chains';
+import { resolveToken, getTokensForChain } from '@/lib/tokens';
 
 // Add rehype-raw to support HTML in markdown for links
 import rehypeRaw from 'rehype-raw';
+
+// Custom link component to open external links in new tab
+const CustomLink = ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+  if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+    return (
+      <a 
+        {...props}
+        href={href} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-blue-600 hover:text-blue-800 underline"
+      >
+        {children}
+      </a>
+    );
+  }
+  return <a {...props} href={href}>{children}</a>;
+};
 
 interface Message {
   id: string;
@@ -117,6 +137,13 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
   // Store the last transaction data for user requests
   const [lastTransactionData, setLastTransactionData] = useState<any>(null);
   
+  // Cache quote data to prevent duplicate API calls during network switching
+  const [cachedQuoteData, setCachedQuoteData] = useState<{
+    key: string;
+    data: any;
+    timestamp: number;
+  } | null>(null);
+  
   // Get wallet information
   const { address, isConnected, embeddedWalletInfo } = useAppKitAccount()
   const { caipNetwork } = useAppKitNetwork()
@@ -124,6 +151,10 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
   const { fetchBalance } = useAppKitBalance()
   // Get AppKit functions
   const appKit = useAppKit();
+  
+  // Wallet transaction hooks
+  const { data: walletClient } = useWalletClient();
+  const { sendTransactionAsync } = useSendTransaction();
   
   const [balance, setBalance] = useState<{
     formatted: string;
@@ -301,12 +332,6 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     scrollToBottom();
   }, [messages]); // Chỉ chạy khi messages thay đổi
 
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   const { register, handleSubmit, reset, formState: { isValid } } = useForm({
     defaultValues: {
       message: ''
@@ -326,11 +351,40 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     }
   }, []);
 
+  // Scroll to bottom function
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollElement = scrollAreaRef.current;
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        // Try multiple approaches for better compatibility
+        const scrollHeight = scrollElement.scrollHeight;
+        const clientHeight = scrollElement.clientHeight;
+        
+        // Method 1: scrollTo
+        scrollElement.scrollTo({ 
+          top: scrollHeight, 
+          behavior: 'smooth' 
+        });
+        
+        // Method 2: scrollTop (fallback)
+        scrollElement.scrollTop = scrollHeight;
+        
+        // Method 3: Find the actual scrollable element inside ScrollArea
+        const viewport = scrollElement.querySelector('[data-radix-scroll-area-viewport]');
+        if (viewport) {
+          viewport.scrollTo({ 
+            top: viewport.scrollHeight, 
+            behavior: 'smooth' 
+          });
+        }
+      }, 100); // Increased timeout for better reliability
+    }
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    scrollToBottom();
   }, [messages]);
 
   const addMessage = (role: 'user' | 'assistant', content: string, isLoading = false) => {
@@ -343,6 +397,8 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     };
     
     setMessages(prev => [...prev, newMessage]);
+    // Scroll to bottom when new message is added
+    scrollToBottom();
     return newMessage;
   };
 
@@ -352,6 +408,8 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
         message.id === id ? { ...message, content, isLoading } : message
       )
     );
+    // Scroll to bottom when message is updated (for AI typing effect)
+    scrollToBottom();
   };
 
   // Store the last swap request for confirmation
@@ -362,182 +420,221 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`,
     chain: string;
   } | null>(null);
 
-  // Get real-time price quote for tokens
-  const getTokenPriceQuote = async (tokenIn: string, tokenOut: string, amount: number, chain: string = 'ethereum') => {
-    try {
-      // Add a loading message
-      const loadingMessage = addMessage('assistant', 'Getting the latest price quote...', true);
-      
-      // Find token addresses
-      const sellTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenIn.toLowerCase()) || {
-        symbol: tokenIn,
-        address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // Default to ETH
-        decimals: 18
-      };
-      
-      const buyTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenOut.toLowerCase()) || {
-        symbol: tokenOut,
-        address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Default to USDC
-        decimals: 6
-      };
-      
-      // Log the token addresses to debug
-      console.log('Token addresses:', {
-        sellToken: {
-          symbol: sellTokenInfo.symbol,
-          address: sellTokenInfo.address,
-          decimals: sellTokenInfo.decimals
-        },
-        buyToken: {
-          symbol: buyTokenInfo.symbol,
-          address: buyTokenInfo.address,
-          decimals: buyTokenInfo.decimals
-        }
-      });
-      
-      // Call the price API endpoint
-      const searchParams = new URLSearchParams({
-        sellToken: sellTokenInfo.address,
-        buyToken: buyTokenInfo.address,
-        sellAmount: (amount * 10 ** sellTokenInfo.decimals).toString(),
-        chainId: chain === 'ethereum' ? '1' : '42161' // Map chain name to ID (ETH or Arbitrum)
-      });
-      
-      // Log the complete URL for debugging
-      const apiUrl = `/api/swap/price?${searchParams.toString()}`;
-      console.log('Calling API:', apiUrl);
-      
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API response error:', response.status, errorText);
-        throw new Error(`Failed to get price quote: ${response.status} ${errorText}`);
-      }
-      
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Unknown error');
-      }
-      
-      // Format the buy amount
-      const buyAmount = parseFloat(result.data.buyAmount) / (10 ** buyTokenInfo.decimals);
-      const formattedBuyAmount = buyAmount.toFixed(6);
-      
-      // Format sources
-      let sourceText = '';
-      if (result.data.sources) {
-        const activeSources = result.data.sources
-          .filter((s: any) => parseFloat(s.proportion) > 0)
-          .map((s: any) => `${s.name} (${Math.round(parseFloat(s.proportion) * 100)}%)`);
+  // Store pending approval request
+  const [pendingApprovalRequest, setPendingApprovalRequest] = useState<{
+    tokenAddress: string;
+    tokenSymbol: string;
+    spenderAddress: string;
+  } | null>(null);
+
+  // Track transaction status
+  const trackTransactionStatus = async (
+    txHash: string, 
+    messageId: string, 
+    chain: string, 
+    amount: number, 
+    tokenIn: string, 
+    formattedBuyAmount: string, 
+    tokenOut: string
+  ) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 60 attempts = ~2 minutes
+    
+    const checkStatus = async () => {
+      try {
+        const receipt = await (window.ethereum as any).request({
+          method: 'eth_getTransactionReceipt',
+          params: [txHash],
+        });
         
-        if (activeSources.length > 0) {
-          sourceText = `\nSources: ${activeSources.join(', ')}`;
+        if (receipt) {
+          const explorerUrl = 
+            chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
+            chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${txHash}` :
+            chain === 'arbitrum' ? `https://arbiscan.io/tx/${txHash}` :
+            chain === 'base' ? `https://basescan.org/tx/${txHash}` :
+            chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
+            chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+            `#`;
+          
+          const explorerName = 
+            chain === 'ethereum' ? 'Etherscan' : 
+            chain === 'sepolia' ? 'Sepolia Etherscan' :
+            chain === 'arbitrum' ? 'Arbiscan' :
+            chain === 'base' ? 'Basescan' :
+            chain === 'polygon' ? 'Polygonscan' :
+            chain === 'avalanche' ? 'Snowtrace' :
+            'block explorer';
+          
+          if (receipt.status === '0x1') {
+            // Transaction successful
+            updateMessage(
+              messageId,
+              `✅ **Swap Successful!** 
+              
+Transaction hash: \`${txHash}\`
+
+🎉 **Status**: Confirmed ✅
+
+**Swap Details:**
+- Swapped: ${amount} ${tokenIn}
+- Received: ~${formattedBuyAmount} ${tokenOut}
+- Network: ${chain}
+
+View on [${explorerName}](${explorerUrl})
+
+Your tokens should now be in your wallet!`
+            );
+          } else {
+            // Transaction failed
+            updateMessage(
+              messageId,
+              `❌ **Swap Failed** 
+              
+Transaction hash: \`${txHash}\`
+
+⚠️ **Status**: Failed ❌
+
+The transaction was confirmed but failed during execution. This could be due to:
+- Insufficient gas
+- Slippage tolerance exceeded
+- Market conditions changed
+
+View details on [${explorerName}](${explorerUrl})
+
+You can try the swap again with different parameters.`
+            );
+          }
+          return; // Stop polling
+        }
+        
+        // Transaction still pending
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(checkStatus, 2000); // Check every 2 seconds
+        } else {
+          // Timeout
+          updateMessage(
+            messageId,
+            `⏳ **Transaction Status Unknown**
+            
+Transaction hash: \`${txHash}\`
+
+🔄 **Status**: Still processing...
+
+The transaction is taking longer than expected to confirm. This is normal during network congestion.
+
+You can check the status manually on [${
+              chain === 'ethereum' ? 'Etherscan' : 
+              chain === 'sepolia' ? 'Sepolia Etherscan' :
+              chain === 'arbitrum' ? 'Arbiscan' :
+              chain === 'base' ? 'Basescan' :
+              chain === 'polygon' ? 'Polygonscan' :
+              chain === 'avalanche' ? 'Snowtrace' :
+              'block explorer'
+            }](${
+              chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
+              chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${txHash}` :
+              chain === 'arbitrum' ? `https://arbiscan.io/tx/${txHash}` :
+              chain === 'base' ? `https://basescan.org/tx/${txHash}` :
+              chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
+              chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+              `#`
+            })`
+          );
+        }
+      } catch (error) {
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(checkStatus, 2000);
+        } else {
+          updateMessage(
+            messageId,
+            `❓ **Unable to Track Transaction**
+            
+Transaction hash: \`${txHash}\`
+
+We couldn't automatically track your transaction status, but it may still be processing.
+
+Please check manually on [${
+              chain === 'ethereum' ? 'Etherscan' : 
+              chain === 'sepolia' ? 'Sepolia Etherscan' :
+              chain === 'arbitrum' ? 'Arbiscan' :
+              chain === 'base' ? 'Basescan' :
+              chain === 'polygon' ? 'Polygonscan' :
+              chain === 'avalanche' ? 'Snowtrace' :
+              'block explorer'
+            }](${
+              chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
+              chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${txHash}` :
+              chain === 'arbitrum' ? `https://arbiscan.io/tx/${txHash}` :
+              chain === 'base' ? `https://basescan.org/tx/${txHash}` :
+              chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
+              chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+              `#`
+            })`
+          );
         }
       }
-      
-      // Add price information if available
-      let priceText = '';
-      if (result.data.price && result.data.price !== '0' && !isNaN(parseFloat(result.data.price))) {
-        priceText = `\nPrice: 1 ${tokenIn} = ${parseFloat(result.data.price).toFixed(6)} ${tokenOut}`;
-      }
-      
-      // Update the message with the price quote
-      updateMessage(
-        loadingMessage.id,
-        `Based on current rates, you can swap ${amount} ${tokenIn} for approximately **${formattedBuyAmount} ${tokenOut}** on ${chain}.${priceText}${sourceText}
-        
-Would you like to proceed with this swap?`,
-        false
-      );
-      
-      // Return the quote data
-      return {
-        buyAmount: formattedBuyAmount,
-        price: result.data.price,
-        sources: result.data.sources
-      };
-    } catch (error) {
-      console.error('Error getting price quote:', error);
-      addMessage('assistant', 'Sorry, I encountered an error while getting the price quote. Please try again or use the swap interface.');
-      return null;
-    }
+    };
+    
+    // Start checking after a 5-second delay
+    setTimeout(checkStatus, 5000);
   };
 
-  // Update handleSwapRequest to get a quote first
+  // Update handleSwapRequest to get a quote first and cache it
   const handleSwapRequest = async (tokenIn: string, tokenOut: string, amount: number, chain: string) => {
     // Add loading message directly from this function
     const loadingMessage = addMessage('assistant', 'Getting the latest price quote...', true);
     
     // Get a real-time price quote first
     try {
-      // Find token addresses for issues handling
-      const sellTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenIn.toLowerCase());
-      const buyTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenOut.toLowerCase());
+      // Get chain ID from chain name
+      const chainId = getChainId(chain);
+      if (!chainId) {
+        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Polygon, Avalanche, or Sepolia.`, false);
+        return;
+      }
+      
+      // Find token addresses using the new token resolution system
+      const sellTokenInfo = resolveToken(tokenIn, chainId);
+      const buyTokenInfo = resolveToken(tokenOut, chainId);
       
       // Log the tokens being used
-      console.log("Swap request tokens:", {
-        sellToken: {
-          symbol: tokenIn,
-          found: !!sellTokenInfo,
-          address: sellTokenInfo?.address || 'Not found in token list'
-        },
-        buyToken: {
-          symbol: tokenOut,
-          found: !!buyTokenInfo,
-          address: buyTokenInfo?.address || 'Not found in token list'
-        }
-      });
+
       
-      // Use default tokens if not found
-      const sellTokenAddress = sellTokenInfo?.address || 
-        (tokenIn.toLowerCase() === 'eth' ? '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' : null);
-      
-      const buyTokenAddress = buyTokenInfo?.address || 
-        (tokenOut.toLowerCase() === 'usdt' ? '0xdAC17F958D2ee523a2206206994597C13D831ec7' : 
-         tokenOut.toLowerCase() === 'usdc' ? '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' : null);
-      
-      if (!sellTokenAddress) {
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenIn}". Please try with a supported token like ETH, USDC, USDT, or DAI.`, false);
+      if (!sellTokenInfo) {
+        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
+        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenIn}" on ${chain}. Available tokens: ${availableTokens}`, false);
         return;
       }
       
-      if (!buyTokenAddress) {
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenOut}". Please try with a supported token like ETH, USDC, USDT, or DAI.`, false);
+      if (!buyTokenInfo) {
+        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
+        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenOut}" on ${chain}. Available tokens: ${availableTokens}`, false);
         return;
       }
       
-      // Use the correct decimals based on the token
-      const sellTokenDecimals = sellTokenInfo?.decimals || 18; // Default to 18 for ETH
-      const buyTokenDecimals = buyTokenInfo?.decimals || 6; // Default to 6 for stablecoins
-      
-      // Import the getSwapPrice function from swap-utils
-      const { getSwapPrice, formatTokenAmount } = await import('@/lib/swap-utils');
+      // Import the utility functions
+      const { formatTokenAmount, getSwapQuote } = await import('@/lib/swap-utils');
       
       // Format amount correctly - convert to wei/smallest unit
-      const formattedAmount = formatTokenAmount(amount, sellTokenDecimals);
+      const formattedAmount = formatTokenAmount(amount, sellTokenInfo.decimals);
       
-      console.log('Requesting price with params:', {
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
-        sellAmount: formattedAmount,
-        takerAddress: address || 'No wallet connected',
-        chainId: chain === 'ethereum' ? 1 : 42161
-      });
+
       
-      // Use the same function that works in the SwapInterface component
-      const result = await getSwapPrice({
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
+      // Use getSwapQuote instead of getSwapPrice to get executable transaction data
+      const result = await getSwapQuote({
+        sellToken: sellTokenInfo.address,
+        buyToken: buyTokenInfo.address,
         sellAmount: formattedAmount,
-        chainId: chain === 'ethereum' ? 1 : 42161,
-        takerAddress: address || undefined
+        chainId,
+        takerAddress: address || '',
+        slippagePercentage: 1.0
       });
       
       // Check for error response
       if (result && result.error) {
-        console.error('API error:', result.error);
         updateMessage(loadingMessage.id, `Sorry, I couldn't get a price quote: ${result.error.reason || 'Unknown error'}. Please try again.`, false);
         return;
       }
@@ -548,61 +645,43 @@ Would you like to proceed with this swap?`,
         return;
       }
       
-      // Handle various response formats
-      let buyAmount = 0;
-      let sources = [];
-      let price = '0';
+      // Cache the quote data immediately for use by executeSwap
+      const quoteKey = `${tokenIn}-${tokenOut}-${amount}-${chain}-${sellTokenInfo.address}-${buyTokenInfo.address}`;
+      setCachedQuoteData({
+        key: quoteKey,
+        data: result,
+        timestamp: Date.now()
+      });
       
-      // Extract buyAmount from different possible locations
+      // Extract buyAmount
+      let buyAmount = 0;
       if (result.buyAmount) {
         buyAmount = parseFloat(result.buyAmount);
-      } else if (result.price && result.sellAmount) {
-        // If we have price and sellAmount but no buyAmount, calculate it
-        buyAmount = parseFloat(result.price) * (parseFloat(result.sellAmount) / Math.pow(10, sellTokenDecimals));
-      } else {
-        console.warn('Could not find buyAmount in API response:', result);
-        // Make a reasonable guess based on price or set a fallback
-        buyAmount = amount * (parseFloat(result.price || '0') || 1);
-      }
-      
-      // Extract sources if available
-      if (result.sources) {
-        sources = result.sources;
-      }
-      
-      // Extract price
-      if (result.price) {
-        price = result.price;
+      } else if (result.transaction?.buyAmount) {
+        buyAmount = parseFloat(result.transaction.buyAmount);
       }
       
       // Format the buy amount
-      const formattedBuyAmount = (buyAmount / Math.pow(10, buyTokenDecimals)).toFixed(6);
+      const formattedBuyAmount = (buyAmount / Math.pow(10, buyTokenInfo.decimals)).toFixed(6);
       
-      // Format sources
+      // Extract price information if available
+      let priceText = '';
+      if (result.price && result.price !== '0' && !isNaN(parseFloat(result.price))) {
+        const decimalAdjustment = 10 ** (sellTokenInfo.decimals - buyTokenInfo.decimals);
+        const adjustedPrice = parseFloat(result.price) * decimalAdjustment;
+        priceText = `\nPrice: 1 ${tokenIn} = ${adjustedPrice.toFixed(6)} ${tokenOut}`;
+      }
+      
+      // Extract sources if available
       let sourceText = '';
-      if (sources && sources.length > 0) {
-        const activeSources = sources
-          .filter((s: any) => s && s.proportion && parseFloat(s.proportion) > 0)
-          .map((s: any) => `${s.name} (${Math.round(parseFloat(s.proportion) * 100)}%)`);
+      if (result.route?.fills) {
+        const activeSources = result.route.fills
+          .filter((fill: any) => fill && fill.proportionBps && parseInt(fill.proportionBps) > 0)
+          .map((fill: any) => `${fill.source} (${Math.round(parseInt(fill.proportionBps) / 100)}%)`);
         
         if (activeSources.length > 0) {
           sourceText = `\nSources: ${activeSources.join(', ')}`;
         }
-      }
-      
-      // Add price information if available
-      let priceText = '';
-      if (price && price !== '0' && !isNaN(parseFloat(price))) {
-        // Convert price to user-friendly format (token values not wei values)
-        // Price is given as buyAmount/sellAmount in base units, so we need to adjust for decimals
-        const sellTokenDecimals = sellTokenInfo?.decimals || 18;
-        const buyTokenDecimals = buyTokenInfo?.decimals || 6;
-        
-        // Calculate the price in terms of buyToken per sellToken
-        const decimalAdjustment = 10 ** (sellTokenDecimals - buyTokenDecimals);
-        const adjustedPrice = parseFloat(price) * decimalAdjustment;
-        
-        priceText = `\nPrice: 1 ${tokenIn} = ${adjustedPrice.toFixed(6)} ${tokenOut}`;
       }
       
       // Update the message with the price quote and ask for confirmation
@@ -663,6 +742,9 @@ You can use this information to manually submit the transaction through your wal
       // User confirmed the swap request
       const { tokenIn, tokenOut, amount, chain } = pendingSwapRequest;
       
+      // Clear the form input
+      reset();
+      
       // Execute the swap
       executeSwap(tokenIn, tokenOut, amount, chain);
       
@@ -672,6 +754,9 @@ You can use this information to manually submit the transaction through your wal
     } else if (pendingSwapRequest && /^(no|nope|cancel|don't|dont|n)$/i.test(userMessage)) {
       // User declined the swap request
       addMessage('assistant', "No problem! Let me know if you'd like to try a different swap or if there's anything else I can help with.");
+      
+      // Clear the form input
+      reset();
       
       // Clear the pending request
       setPendingSwapRequest(null);
@@ -684,24 +769,48 @@ You can use this information to manually submit the transaction through your wal
     setIsProcessing(true);
     reset();
     
+    let swapHandledDirectly = false;
+    
     try {
-      // Simple swap intent detection
+      // Simple swap intent detection - but prefer AI service for better parsing
       const swapRegex = /swap\s+([0-9.]+)\s+([a-zA-Z]+)\s+(?:to|for)\s+([a-zA-Z]+)/i;
       const swapMatch = userMessage.match(swapRegex);
       
       if (swapMatch) {
-        // Extract swap parameters
+        // Extract swap parameters with improved chain detection
         const amount = parseFloat(swapMatch[1]);
         const tokenIn = swapMatch[2];
         const tokenOut = swapMatch[3];
-        const chain = userMessage.includes('arbitrum') ? 'arbitrum' : 'ethereum'; // Default to Ethereum unless specified
+        
+        // Improved chain detection using the centralized chain system
+        let chain = 'ethereum'; // default
+        const lowerMessage = userMessage.toLowerCase();
+        
+        // Check for supported chains using the centralized configuration
+        const { getChainByName } = await import('@/lib/chains');
+        const chainKeywords = ['base', 'arbitrum', 'arb', 'polygon', 'matic', 'avalanche', 'avax', 'sepolia'];
+        
+        for (const keyword of chainKeywords) {
+          if (lowerMessage.includes(keyword)) {
+            const chainConfig = getChainByName(keyword);
+            if (chainConfig) {
+              // Find the normalized chain name
+              const { SUPPORTED_CHAINS } = await import('@/lib/chains');
+              chain = Object.keys(SUPPORTED_CHAINS).find(
+                key => SUPPORTED_CHAINS[key] === chainConfig
+              ) || 'ethereum';
+              break;
+            }
+          }
+        }
         
         // Update loading message
-        updateMessage(loadingMessage.id, `Processing your request to swap ${amount} ${tokenIn} for ${tokenOut}...`, true);
+        updateMessage(loadingMessage.id, `Processing your request to swap ${amount} ${tokenIn} for ${tokenOut} on ${chain}...`, true);
         
         // Directly handle the swap request
         await handleSwapRequest(tokenIn, tokenOut, amount, chain);
         
+        swapHandledDirectly = true;
         setIsProcessing(false);
         return;
       }
@@ -746,6 +855,12 @@ You can use this information to manually submit the transaction through your wal
         isSmartAccount: embeddedWalletInfo?.accountType === 'smartAccount',
         authProvider: embeddedWalletInfo?.authProvider
       } : null;
+      
+      // Skip AI processing if swap was already handled directly to prevent duplicates
+      if (swapHandledDirectly) {
+        setIsProcessing(false);
+        return;
+      }
       
       // Replace with your actual API endpoint
       const response = await fetch('/api/prompt', {
@@ -927,84 +1042,368 @@ I'll analyze multiple protocols to find you the best options, and you'll always 
 
 **Pro tip:** For the best experience, be specific about amounts and tokens. If you don't specify a chain, I'll default to Ethereum.
 
-Ready to do DeFi like a snap? Go ahead and type your first request!`;
-  }
+  Ready to do DeFi like a snap? Go ahead and type your first request!`;
+    }
+
+  // Send transaction helper function (to be used by executeSwap)
+  const sendSwapTransaction = async (normalizedResult: any, tokenIn: string, tokenOut: string, amount: number, chain: string, formattedBuyAmount: string) => {
+    try {
+      // Prepare transaction data with proper formatting
+      const transactionRequest = {
+        to: normalizedResult.to,
+        data: normalizedResult.data,
+        // Ensure value is properly formatted for wagmi
+        value: normalizedResult.value && normalizedResult.value !== '0x0' 
+          ? normalizedResult.value 
+          : undefined,
+      };
+      
+      console.log('Transaction data received:', normalizedResult);
+      console.log('Sending transaction:', transactionRequest);
+      
+      // Store the transaction data for later reference
+      setLastTransactionData(transactionRequest);
+      
+      try {
+        // Format the transaction data for direct submission
+        const txRequest = {
+          to: normalizedResult.to,
+          data: normalizedResult.data,
+          value: normalizedResult.value !== '0x0' && normalizedResult.value 
+            ? (() => {
+                // Convert decimal string to hex format for wallet
+                const valueStr = normalizedResult.value.toString();
+                if (valueStr.startsWith('0x')) {
+                  return valueStr; // Already hex
+                } else {
+                  // Convert decimal string to hex
+                  return '0x' + BigInt(valueStr).toString(16);
+                }
+              })()
+            : '0x0',
+          from: address, // Add the from address explicitly
+          chainId: (() => {
+            const chainId = getChainId(chain);
+            if (!chainId) return '0x1'; // Default to Ethereum
+            const hexChainId = chainId.toString(16);
+            return '0x' + hexChainId;
+          })(),
+          // Use gas from result if available, convert to hex format
+          gas: normalizedResult.gas ? (() => {
+            const gasStr = normalizedResult.gas.toString();
+            if (gasStr.startsWith('0x')) {
+              return gasStr; // Already hex
+            } else {
+              // Convert decimal string to hex
+              return '0x' + BigInt(gasStr).toString(16);
+            }
+          })() : undefined,
+        };
+        
+        console.log('Prepared transaction request for direct submission:', txRequest);
+        console.log('Full transaction data being sent:', {
+          to: txRequest.to,
+          dataLength: txRequest.data ? txRequest.data.length : 0,
+          dataPreview: txRequest.data ? txRequest.data.substring(0, 200) + '...' : 'undefined',
+          dataEndsWith: txRequest.data ? '...' + txRequest.data.substring(txRequest.data.length - 200) : 'undefined',
+          value: txRequest.value,
+          from: txRequest.from,
+          chainId: txRequest.chainId,
+          gas: txRequest.gas,
+          // Using allowance-holder approach (no Permit2)
+          isAllowanceHolderSwap: true,
+          spenderAddress: normalizedResult.to
+        });
+        
+        // Use window.ethereum directly to trigger wallet
+        let tx;
+        if (typeof window !== 'undefined' && window.ethereum) {
+          try {
+            console.log('Sending transaction via window.ethereum...');
+            tx = await (window.ethereum as any).request({
+              method: 'eth_sendTransaction',
+              params: [txRequest],
+            });
+            console.log('Transaction sent with hash:', tx);
+          } catch (err: any) {
+            // Improved error logging with more details
+            console.error('Error with direct ethereum provider:', {
+              errorObject: err,
+              errorCode: err?.code,
+              errorMessage: err?.message,
+              errorData: err?.data,
+              errorReason: err?.reason,
+              errorType: typeof err
+            });
+            
+            // Enhanced rejection detection
+            const isUserRejection = 
+              err?.code === 4001 || // Standard MetaMask rejection code
+              (typeof err?.message === 'string' && (
+                err.message.includes('User denied') || 
+                err.message.includes('User rejected') ||
+                err.message.includes('user rejected') ||
+                err.message.includes('user denied') ||
+                err.message.includes('rejected') ||
+                err.message.includes('cancelled') ||
+                err.message.includes('canceled')
+              ));
+            
+            // Check for allowance-related errors
+            const isAllowanceError = 
+              (typeof err?.message === 'string' && (
+                err.message.includes('TRANSFER_FROM_FAILED') ||
+                err.message.includes('allowance') ||
+                err.message.includes('insufficient allowance')
+              )) ||
+              (typeof err?.data === 'string' && (
+                err.data.includes('#1002') ||
+                err.data.includes('TRANSFER_FROM_FAILED')
+              ));
+            
+            if (isUserRejection) {
+              console.log('User rejected transaction - not retrying');
+              // Create a standardized error object with clear message
+              const rejectionError = new Error('Transaction was rejected by the user');
+              rejectionError.name = 'UserRejectedRequestError';
+              throw rejectionError; // Re-throw to be handled by outer catch
+            }
+            
+            if (isAllowanceError) {
+              console.log('Allowance error detected - may need token approval');
+              const allowanceError = new Error('Token allowance insufficient. Please ensure you have approved the token for trading.');
+              allowanceError.name = 'AllowanceError';
+              throw allowanceError; // Re-throw to be handled by outer catch
+            }
+            
+            // Only fall back to wagmi for non-user-rejection errors
+            console.log('Falling back to wagmi sendTransaction for non-rejection error...');
+            try {
+              tx = await sendTransactionAsync({
+                to: normalizedResult.to as `0x${string}`,
+                data: normalizedResult.data as `0x${string}`,
+                value: normalizedResult.value !== '0x0' && normalizedResult.value 
+                  ? BigInt(normalizedResult.value) 
+                  : undefined,
+                chainId: getChainId(chain) || 1,
+                gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
+              });
+            } catch (wagmiErr: any) {
+              console.error('Error with wagmi fallback:', wagmiErr);
+              // If wagmi also fails, throw the original error or the wagmi error if it's more informative
+              throw wagmiErr?.message ? wagmiErr : err;
+            }
+          }
+        } else {
+          // Fall back to wagmi if window.ethereum is not available
+          console.log('No ethereum provider found, using wagmi...');
+          tx = await sendTransactionAsync({
+            to: normalizedResult.to as `0x${string}`,
+            data: normalizedResult.data as `0x${string}`,
+            value: normalizedResult.value !== '0x0' && normalizedResult.value 
+              ? BigInt(normalizedResult.value) 
+              : undefined,
+            chainId: getChainId(chain) || 1,
+            gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
+          });
+        }
+        
+        // Transaction was sent successfully
+        if (tx) {
+          const statusMessage = addMessage(
+            'assistant', 
+            `✅ Transaction submitted! 
+            
+Transaction hash: \`${tx}\`
+
+⏳ **Status**: Pending confirmation...
+
+You can check the status on ${
+  chain === 'ethereum' ? '[Etherscan]' : 
+  chain === 'sepolia' ? '[Sepolia Etherscan]' :
+  chain === 'arbitrum' ? '[Arbiscan]' :
+  chain === 'base' ? '[Basescan]' :
+  chain === 'polygon' ? '[Polygonscan]' :
+  chain === 'avalanche' ? '[Snowtrace]' :
+  '[the block explorer]'
+}(${
+  chain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
+  chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${tx}` :
+  chain === 'arbitrum' ? `https://arbiscan.io/tx/${tx}` :
+  chain === 'base' ? `https://basescan.org/tx/${tx}` :
+  chain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
+  chain === 'avalanche' ? `https://snowtrace.io/tx/${tx}` :
+  `#`
+})
+
+Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${tokenOut} is being processed.`
+          );
+          
+          // Track transaction status
+          trackTransactionStatus(tx, statusMessage.id, chain, amount, tokenIn, formattedBuyAmount, tokenOut);
+        } else {
+          // Hash should always be available if transaction was sent
+          addMessage('assistant', '✅ Transaction submitted! You can check your wallet for transaction status.');
+        }
+      } catch (error: any) {
+        // Enhanced error logging
+        console.error('Transaction error details:', {
+          error,
+          errorName: error?.name,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorData: error?.data,
+          errorType: typeof error
+        });
+        
+        // Improved user feedback based on error type
+        if (error?.name === 'UserRejectedRequestError' || 
+            error?.code === 4001 || 
+            (typeof error?.message === 'string' && 
+             (error.message.includes('reject') || 
+              error.message.includes('cancel') || 
+              error.message.includes('denied')))) {
+          // User rejection message
+          addMessage('assistant', "You've canceled the transaction. No problem! Let me know if you'd like to try again later or if you need anything else.");
+        } else if (error?.name === 'AllowanceError' || 
+                  (typeof error?.message === 'string' && 
+                   (error.message.includes('TRANSFER_FROM_FAILED') || 
+                    error.message.includes('allowance') || 
+                    error.message.includes('insufficient allowance')))) {
+          // Allowance-specific error message
+          addMessage('assistant', `⚠️ The token allowance couldn't be processed properly.
+
+**Please try the swap again** - the approval transaction may still be pending.
+
+If the issue persists:
+1. Try refreshing the page and attempting the swap again
+2. Make sure you have approved the token spending when prompted
+3. Check that you have sufficient token balance for the swap`);
+        } else if (typeof error?.message === 'string' && 
+                  (error.message.includes('insufficient funds') || 
+                   error.message.includes('gas') || 
+                   error.message.toLowerCase().includes('balance'))) {
+          // Insufficient funds message
+          addMessage('assistant', "It looks like there might be insufficient funds for this transaction. This could be due to the transaction amount plus the gas fees exceeding your available balance. Would you like to try with a smaller amount?");
+        } else {
+          // Generic error message
+          addMessage('assistant', "The transaction couldn't be completed. This might be due to network congestion, high gas prices, or a temporary wallet issue. Would you like to try again?");
+        }
+      }
+    } catch (error: any) {
+      // Log detailed error for debugging
+      console.error('Error sending transaction (outer catch):', {
+        error,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorStack: error?.stack,
+        errorType: typeof error
+      });
+      
+      // Provide more specific feedback based on error patterns
+      if (typeof error?.message === 'string') {
+        if (error.message.includes('insufficient funds') || error.message.includes('balance')) {
+          addMessage('assistant', 'You don\'t have enough funds to complete this transaction. This includes both the swap amount and the gas fees. Would you like to try a smaller amount?');
+        } else if (error.message.includes('gas')) {
+          addMessage('assistant', 'There was an issue with the gas estimation for this transaction. Gas prices might be high right now or the network could be congested. Would you like to try again later?');
+        } else if (error.message.includes('nonce')) {
+          addMessage('assistant', 'There was a transaction sequence issue. This usually happens when you have pending transactions. Please check your wallet for any pending transactions and try again after they complete.');
+        } else {
+          addMessage('assistant', `There was an error processing the transaction: ${error.message}. Would you like to try again with different parameters?`);
+        }
+      } else {
+        addMessage('assistant', 'There was an error processing the transaction. This could be due to network issues, insufficient funds, or wallet configuration. Would you like to try again?');
+      }
+    }
+  };
+
+
+
+
+
+
 
   // Execute the swap after confirmation
-  const executeSwap = async (tokenIn: string, tokenOut: string, amount: number, chain: string) => {
+  const executeSwap = async (tokenIn: string, tokenOut: string, amount: number, chain: string, skipNetworkCheck: boolean = false) => {
     try {
       // Add a loading message
       const loadingMessage = addMessage('assistant', 'Preparing your swap transaction...', true);
       
-      // Find token addresses
-      const sellTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenIn.toLowerCase());
-      const buyTokenInfo = TOKENS.find(t => t.symbol.toLowerCase() === tokenOut.toLowerCase());
-      
-      // Use default tokens if not found
-      const sellTokenAddress = sellTokenInfo?.address || 
-        (tokenIn.toLowerCase() === 'eth' ? '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' : null);
-      
-      const buyTokenAddress = buyTokenInfo?.address || 
-        (tokenOut.toLowerCase() === 'usdt' ? '0xdAC17F958D2ee523a2206206994597C13D831ec7' : null);
-      
-      if (!sellTokenAddress || !buyTokenAddress) {
-        updateMessage(loadingMessage.id, 'Sorry, I couldn\'t recognize one of the tokens. Please try with supported tokens like ETH, USDC, USDT, or DAI.', false);
+      // Get chain ID from chain name
+      const chainId = getChainId(chain);
+      if (!chainId) {
+        updateMessage(loadingMessage.id, `Sorry, I don't support the "${chain}" network yet. Please try with Ethereum, Arbitrum, Base, Polygon, Avalanche, or Sepolia.`, false);
         return;
       }
       
-      // Use the correct decimals based on the token
-      const sellTokenDecimals = sellTokenInfo?.decimals || 18; // Default to 18 for ETH
+      // Find token addresses using the new token resolution system
+      const sellTokenInfo = resolveToken(tokenIn, chainId);
+      const buyTokenInfo = resolveToken(tokenOut, chainId);
+      
+      if (!sellTokenInfo || !buyTokenInfo) {
+        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
+        updateMessage(loadingMessage.id, `Sorry, I couldn't recognize one of the tokens on ${chain}. Available tokens: ${availableTokens}`, false);
+        return;
+      }
       
       // Import the utility functions
-      const { formatTokenAmount, getSwapQuote } = await import('@/lib/swap-utils');
+      const { formatTokenAmount } = await import('@/lib/swap-utils');
       
       // Format amount correctly for the API call
-      const formattedAmount = formatTokenAmount(amount, sellTokenDecimals);
+      const formattedAmount = formatTokenAmount(amount, sellTokenInfo.decimals);
       
-      console.log('Requesting quote with params:', {
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
-        sellAmount: formattedAmount,
-        takerAddress: address || 'No wallet connected',
-        chainId: chain === 'ethereum' ? 1 : 42161
-      });
+
       
-      // Get firm quote before executing
-      console.log('Requesting quote with parameters:', {
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
-        sellAmount: formattedAmount,
-        takerAddress: address || '',
-        slippagePercentage: 1.0,
-        chainId: chain === 'ethereum' ? 1 : 42161
-      });
+
+      
+      // ALWAYS use cached quote data from handleSwapRequest - no API calls in executeSwap
+      const quoteKey = `${tokenIn}-${tokenOut}-${amount}-${chain}-${sellTokenInfo.address}-${buyTokenInfo.address}`;
+      const cacheValidityMs = 30000; // 30 seconds
+      
+
       
       let result;
-      try {
-        result = await getSwapQuote({
-          sellToken: sellTokenAddress,
-          buyToken: buyTokenAddress,
-          sellAmount: formattedAmount,
-          takerAddress: address || '',
-          slippagePercentage: 1.0,
-          chainId: chain === 'ethereum' ? 1 : 42161
-        });
+      
+      if (cachedQuoteData && 
+          cachedQuoteData.key === quoteKey && 
+          (Date.now() - cachedQuoteData.timestamp) < cacheValidityMs) {
+        result = cachedQuoteData.data;
+        updateMessage(loadingMessage.id, 'Using cached quote data for faster execution...', true);
+      } else {
+        // If cache miss, try to get fresh quote data
+
         
-        console.log('Raw quote response:', result);
+        // Import the utility functions
+        const { getSwapQuote } = await import('@/lib/swap-utils');
         
-        // Verify we have a valid response
-        if (!result || typeof result !== 'object' || Object.keys(result).length === 0) {
-          throw new Error('Empty or invalid response from API');
-        }
-      } catch (error: any) {
-        console.error('Error getting quote:', error);
-        updateMessage(loadingMessage.id, `Sorry, I couldn't get a swap quote: ${error?.message || 'Unknown error'}. Please try again with a different amount or token pair.`, false);
-        return;
+        updateMessage(loadingMessage.id, 'Getting fresh quote data...', true);
+        
+        try {
+          result = await getSwapQuote({
+            sellToken: sellTokenInfo.address,
+            buyToken: buyTokenInfo.address,
+            sellAmount: formattedAmount,
+            chainId,
+            takerAddress: address || '',
+            slippagePercentage: 1.0
+          });
+          
+          // Update cache with fresh data
+          setCachedQuoteData({
+            key: quoteKey,
+            data: result,
+            timestamp: Date.now()
+          });
+          
+
+                  } catch (error) {
+            updateMessage(loadingMessage.id, 'Sorry, I couldn\'t get a fresh quote. Please try the swap request again.', false);
+            return;
+          }
       }
       
       // Check for error response
       if (result && result.error) {
-        console.error('API error:', result.error);
         updateMessage(loadingMessage.id, `Sorry, I couldn't get a swap quote: ${result.error.reason || JSON.stringify(result.error)}. Please try again.`, false);
         return;
       }
@@ -1015,9 +1414,6 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
       }
       
       // Extract transaction data from various possible response formats
-      // Try to handle various API response formats
-      console.log('Response structure:', Object.keys(result));
-      console.log('Full API response:', JSON.stringify(result, null, 2));
       
       // Ensure we have a valid result object
       if (!result) {
@@ -1025,129 +1421,223 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
         return;
       }
       
-      console.log('Full quote response object keys:', Object.keys(result));
+        // Note: Token approvals will be handled automatically by the wallet when the transaction is sent
+  // No need to pre-approve tokens - the wallet will prompt for approval if needed
       
-      // Check if the transaction object exists and has the needed fields
-      if (result.transaction && typeof result.transaction === 'object') {
-        console.log('Transaction object found with keys:', Object.keys(result.transaction));
-      } else {
-        console.log('No transaction object found in result');
-      }
+
       
-      // Different APIs return data in different formats
-      let txTo = result.to || result.allowanceTarget || (result.transaction && result.transaction.to);
-      let txData = result.data || (result.transaction && result.transaction.data);
-      let txValue = result.value || result.protocolFee || (result.transaction && result.transaction.value) || '0x0';
-      const permit2 = result.permit2 || (result.transaction && result.transaction.permit2);
-      
-      console.log('Extracted fields:', { txTo, txData, txValue });
-      
-      // Debug the transaction object specifically if it exists
-      if (result.transaction) {
-        console.log('Transaction object found:', result.transaction);
+              // Different APIs return data in different formats
+        let txTo = result.to || result.allowanceTarget || (result.transaction && result.transaction.to);
+        let txData = result.data || (result.transaction && result.transaction.data);
+        let txValue = result.value || result.protocolFee || (result.transaction && result.transaction.value) || '0x0';
         
-        // Prioritize transaction object if available
-        if (result.transaction.to && result.transaction.data) {
-          console.log('Using transaction object directly from response');
-          txTo = result.transaction.to;
-          txData = result.transaction.data;
-          txValue = result.transaction.value || '0x0';
-        } else {
-          console.warn('Transaction object missing required fields to/data');
+        // Fix for ETH swaps: if txTo is the ETH placeholder address, we need the actual contract address
+        if (txTo && txTo.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+          // For ETH swaps, the actual contract address should be in allowanceTarget
+          // This is the 0x contract that will handle the ETH swap
+          if (result.allowanceTarget && result.allowanceTarget.toLowerCase() !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+            txTo = result.allowanceTarget;
+          } else {
+            // Fallback: use a known 0x contract address for Ethereum mainnet
+            // This is the 0x Exchange Proxy contract address
+            txTo = '0xdef1c0ded9bec7f1a1670819833240f027b25eff';
+            console.warn('Using fallback 0x contract address for ETH swap');
+          }
         }
-      }
       
-      // Validate the extracted fields before creating the normalized result
-      if (!txTo || !txData) {
-        console.error('Missing required transaction fields:', { txTo, txData, txValue });
-        
-        // Try one more approach - look for embedded transaction data in the result 
-        // Some APIs might have nested transaction objects
-        if (result.result?.transaction) {
-          console.log('Found nested transaction in result.result:', result.result.transaction);
-          txTo = result.result.transaction.to;
-          txData = result.result.transaction.data;
-          txValue = result.result.transaction.value || '0x0';
-        } else if (result.data?.transaction) {
-          console.log('Found nested transaction in result.data:', result.data.transaction);
-          txTo = result.data.transaction.to;
-          txData = result.data.transaction.data;
-          txValue = result.data.transaction.value || '0x0';
+      
+      
+              // Debug the transaction object specifically if it exists
+        if (result.transaction) {
+          // Prioritize transaction object if available
+          if (result.transaction.to && result.transaction.data) {
+            txTo = result.transaction.to;
+            txData = result.transaction.data;
+            txValue = result.transaction.value || '0x0';
+          }
         }
-      }
       
-      // Create a normalized result object for easier handling
-      const normalizedResult = {
-        to: txTo,
-        data: txData,
-        value: txValue,
-        buyAmount: result.buyAmount || 
-                  (result.transaction && result.transaction.buyAmount) || 
-                  (result.data && result.data.buyAmount) || 
-                  (result.result && result.result.buyAmount),
-        buyTokenAddress: buyTokenAddress,
-        permit2,
-        gas: result.transaction?.gas || result.gas
-      };
+              // Validate the extracted fields before creating the normalized result
+        if (!txTo || !txData) {
+          // Try one more approach - look for embedded transaction data in the result 
+          if (result.result?.transaction) {
+            txTo = result.result.transaction.to;
+            txData = result.result.transaction.data;
+            txValue = result.result.transaction.value || '0x0';
+          } else if (result.data?.transaction) {
+            txTo = result.data.transaction.to;
+            txData = result.data.transaction.data;
+            txValue = result.data.transaction.value || '0x0';
+          }
+        }
       
-      console.log('Normalized result:', normalizedResult);
+              // Create a normalized result object for easier handling
+        const normalizedResult = {
+          to: txTo,
+          data: txData,
+          value: txValue,
+          buyAmount: result.buyAmount || 
+                    (result.transaction && result.transaction.buyAmount) || 
+                    (result.data && result.data.buyAmount) || 
+                    (result.result && result.result.buyAmount),
+          buyTokenAddress: buyTokenInfo.address,
+          gas: result.transaction?.gas || result.gas
+        };
       
-      // Validate we have the minimum required transaction data
-      if (!normalizedResult.to || !normalizedResult.data) {
-        console.error('Missing required transaction data:', JSON.stringify(normalizedResult), 'Original result keys:', Object.keys(result));
-        // Also dump a sample valid transaction format for debugging
-        console.info('Expected format example: { to: "0x1234...", data: "0x5678...", value: "0x0" }');
-        updateMessage(loadingMessage.id, 'Sorry, the API returned incomplete transaction data. Please try again with a different amount or token pair.', false);
-        return;
-      }
       
-      // Check if we need to handle Permit2 signatures
-      if (normalizedResult.permit2 && normalizedResult.permit2.eip712) {
+      
+              // Validate we have the minimum required transaction data
+        if (!normalizedResult.to || !normalizedResult.data) {
+          updateMessage(loadingMessage.id, 'Sorry, the API returned incomplete transaction data. Please try again with a different amount or token pair.', false);
+          return;
+        }
+      
+
+      
+      // Check if we need to handle token allowances (allowance-holder approach)
+      // Only for non-ETH tokens and when we have a valid contract address
+      const isEthSwap = tokenIn === 'ETH' || tokenIn === 'ETHEREUM' || 
+                       sellTokenInfo.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+      
+      console.log('Approval check:', {
+        tokenIn,
+        isEthSwap,
+        sellTokenAddress: sellTokenInfo.address,
+        normalizedResultTo: normalizedResult.to,
+        willSkipApproval: isEthSwap || !normalizedResult.to || normalizedResult.to.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+      });
+      
+      if (!isEthSwap && normalizedResult.to && 
+          normalizedResult.to.toLowerCase() !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
         try {
           updateMessage(
             loadingMessage.id,
-            `This swap requires additional approval signatures (Permit2). Preparing the transaction with signature...`,
+            `This swap requires token approval. Please approve the 0x contract to spend your ${tokenIn}...`,
             true
           );
           
-          // 1. Sign the permit2.eip712 message
-          // Use the direct import for viemSignTypedData
-          const { concat, numberToHex, size } = await import('viem');
+          const tokenAddress = sellTokenInfo.address;
+          const spenderAddress = normalizedResult.to; // 0x contract address
           
-          // Sign the EIP-712 message directly with walletClient
-          if (!walletClient) {
-            throw new Error('Wallet client not available');
+
+          
+          // Approve the 0x contract to spend the token
+          if (typeof window !== 'undefined' && window.ethereum) {
+            try {
+              // Use viem to encode the approve function call
+              const { encodeFunctionData } = await import('viem');
+              
+              const approveData = encodeFunctionData({
+                abi: [{
+                  inputs: [
+                    { name: 'spender', type: 'address' },
+                    { name: 'amount', type: 'uint256' }
+                  ],
+                  name: 'approve',
+                  outputs: [{ name: '', type: 'bool' }],
+                  stateMutability: 'nonpayable',
+                  type: 'function'
+                }],
+                functionName: 'approve',
+                args: [
+                  spenderAddress as `0x${string}`,
+                  BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff') // Max uint256
+                ]
+              });
+              
+              // Send the approval transaction
+              const approveTx = await (window.ethereum as any).request({
+                method: 'eth_sendTransaction',
+                params: [{
+                  from: address,
+                  to: tokenAddress,
+                  data: approveData,
+                }],
+              });
+              
+
+              
+              updateMessage(
+                loadingMessage.id,
+                `✅ Token approval submitted! Transaction: \`${approveTx}\`
+                
+⏳ Waiting for approval to be confirmed before proceeding with swap...`,
+                true
+              );
+              
+              // Wait for the approval transaction to be confirmed
+              let confirmationAttempts = 0;
+              const maxAttempts = 30; // 30 attempts = ~1 minute
+              
+              while (confirmationAttempts < maxAttempts) {
+                try {
+                  const receipt = await (window.ethereum as any).request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [approveTx],
+                  });
+                  
+                  if (receipt && receipt.status === '0x1') {
+                    break;
+                  }
+                  
+                  confirmationAttempts++;
+                  await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
+                  
+                } catch (receiptError) {
+                  confirmationAttempts++;
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+              }
+              
+              if (confirmationAttempts >= maxAttempts) {
+                console.log('Approval transaction not confirmed within timeout, proceeding anyway...');
+              }
+              
+              updateMessage(
+                loadingMessage.id,
+                `✅ Token approval confirmed! Now you can proceed with the swap.`,
+                true
+              );
+              
+            } catch (approveError: any) {
+              console.error('Error approving token:', approveError);
+              
+              // Check if user rejected the approval
+              if (approveError?.code === 4001 || 
+                  (typeof approveError?.message === 'string' && 
+                   (approveError.message.includes('reject') || 
+                    approveError.message.includes('cancel') || 
+                    approveError.message.includes('denied')))) {
+                updateMessage(
+                  loadingMessage.id,
+                  `Token approval was cancelled. The swap cannot proceed without this approval.`,
+                  false
+                );
+                return;
+              } else {
+                updateMessage(
+                  loadingMessage.id,
+                  `Token approval failed: ${approveError instanceof Error ? approveError.message : 'Unknown error'}`,
+                  false
+                );
+                return;
+              }
+            }
+          } else {
+            updateMessage(
+              loadingMessage.id,
+              `No wallet provider available for token approval. Please ensure your wallet is connected.`,
+              false
+            );
+            return;
           }
           
-          const signature = await walletClient.signTypedData({
-            domain: normalizedResult.permit2.eip712.domain,
-            types: normalizedResult.permit2.eip712.types, 
-            primaryType: normalizedResult.permit2.eip712.primaryType,
-            message: normalizedResult.permit2.eip712.message,
-          }) as `0x${string}`;
-          
-          console.log('Permit2 signature obtained:', signature);
-          
-          // 2. Append signature length and data to transaction.data
-          const signatureLengthInHex = numberToHex(size(signature), {
-            signed: false,
-            size: 32,
-          });
-          
-          // Concatenate the transaction data with signature length and signature
-          normalizedResult.data = concat([
-            normalizedResult.data,
-            signatureLengthInHex,
-            signature
-          ]);
-          
-          console.log('Transaction data updated with signature');
         } catch (error) {
-          console.error('Error handling permit2 signature:', error);
+          console.error('Error in token approval flow:', error);
           updateMessage(
             loadingMessage.id, 
-            'Sorry, there was an issue processing the Permit2 approval. Please try again.',
-            true
+            `Token approval failed: ${error instanceof Error ? error.message : 'Unknown error'}. Cannot proceed with swap.`,
+            false
           );
           return;
         }
@@ -1158,15 +1648,19 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
       const formattedBuyAmount = buyAmount.toFixed(6);
       
       // Format transaction details for user
+      const hasTokenApproval = tokenIn !== 'ETH';
       updateMessage(
         loadingMessage.id,
-        `I've prepared your swap transaction! Please check your wallet to sign the transaction.
+        `I've prepared your swap transaction! ${hasTokenApproval ? 'The token approval has been processed.' : ''} Please check your wallet to sign the transaction.
         
 **Swap Details:**
 - Swapping: ${amount} ${tokenIn}
 - Receiving: ~${formattedBuyAmount} ${tokenOut}
 - Network: ${chain}
-- Slippage: 1%`,
+- Slippage: 1%
+${hasTokenApproval ? '- Token Approval: ✅ Confirmed' : ''}
+
+Please approve the transaction in your wallet to complete the swap.`,
         false
       );
       
@@ -1184,119 +1678,37 @@ Ready to do DeFi like a snap? Go ahead and type your first request!`;
         }
         return;
       }
-      
-      try {
-        // Prepare transaction data with proper formatting
-        const transactionRequest = {
-          to: normalizedResult.to,
-          data: normalizedResult.data,
-          // Ensure value is properly formatted for wagmi
-          value: normalizedResult.value && normalizedResult.value !== '0x0' 
-            ? normalizedResult.value 
-            : undefined,
-        };
-        
-        console.log('Transaction data received:', normalizedResult);
-        console.log('Sending transaction:', transactionRequest);
-        
-        // Store the transaction data for later reference
-        setLastTransactionData(transactionRequest);
-        
-        // Add message that transaction is ready for signing
-        addMessage('assistant', 'Please approve the transaction in your wallet to complete the swap.');
-        
-        try {
-          // Format the transaction data for direct submission
-          const txRequest = {
-            to: normalizedResult.to,
-            data: normalizedResult.data,
-            value: normalizedResult.value !== '0x0' && normalizedResult.value 
-              ? normalizedResult.value  // Keep as hex string for direct provider call
-              : '0x0',
-            from: address, // Add the from address explicitly
-            chainId: chain === 'ethereum' ? '0x1' : '0xa4b1', // Use hex format for direct provider
-            // Use gas from result if available
-            gas: normalizedResult.gas || undefined,
-          };
-          
-          console.log('Prepared transaction request for direct submission:', txRequest);
-          
-          // Use window.ethereum directly to trigger Rabby
-          let tx;
-          if (typeof window !== 'undefined' && window.ethereum) {
-            try {
-              console.log('Sending transaction via window.ethereum...');
-              tx = await (window.ethereum as any).request({
-                method: 'eth_sendTransaction',
-                params: [txRequest],
-              });
-              console.log('Transaction sent with hash:', tx);
-            } catch (err) {
-              console.error('Error with direct ethereum provider:', err);
-              // Fall back to wagmi if direct method fails
-              console.log('Falling back to wagmi sendTransaction...');
-              tx = await sendTransactionAsync({
-                to: normalizedResult.to as `0x${string}`,
-                data: normalizedResult.data as `0x${string}`,
-                value: normalizedResult.value !== '0x0' && normalizedResult.value 
-                  ? BigInt(normalizedResult.value) 
-                  : undefined,
-                chainId: chain === 'ethereum' ? 1 : 42161,
-                gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
-              });
-            }
-          } else {
-            // Fall back to wagmi if window.ethereum is not available
-            console.log('No ethereum provider found, using wagmi...');
-            tx = await sendTransactionAsync({
-              to: normalizedResult.to as `0x${string}`,
-              data: normalizedResult.data as `0x${string}`,
-              value: normalizedResult.value !== '0x0' && normalizedResult.value 
-                ? BigInt(normalizedResult.value) 
-                : undefined,
-              chainId: chain === 'ethereum' ? 1 : 42161,
-              gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
-            });
-          }
-          
-          // Transaction was sent successfully
-          if (tx) {
-            addMessage(
-              'assistant', 
-              `✅ Transaction submitted! 
-              
-Transaction hash: \`${tx}\`
 
-You can check the status on ${chain === 'ethereum' ? 'Etherscan' : 'Arbiscan'}: 
-${chain === 'ethereum' 
-  ? `https://etherscan.io/tx/${tx}` 
-  : `https://arbiscan.io/tx/${tx}`}
-
-Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${tokenOut} is being processed.`
-            );
-          } else {
-            // Hash should always be available if transaction was sent
-            addMessage('assistant', '✅ Transaction submitted! You can check your wallet for transaction status.');
-          }
-        } catch (error) {
-          // User may have rejected the transaction
-          console.error('Transaction error:', error);
-          addMessage('assistant', "It seems the transaction wasn't completed. If you changed your mind, that's okay. Let me know if you'd like to try again or if you need anything else.");
+      // Check if wallet is on the correct network (unless we're skipping the check)
+      if (!skipNetworkCheck) {
+        const targetChainId = getChainId(chain);
+        const currentChainId = caipNetwork?.id;
+        const currentChainIdNumber = currentChainId ? extractChainIdFromCAIP(currentChainId) : null;
+        
+        console.log('Network check:', { 
+          targetChainId, 
+          currentChainId, 
+          currentChainIdNumber, 
+          currentChainName: caipNetwork?.name 
+        });
+        
+        if (targetChainId && currentChainIdNumber !== targetChainId) {
+          // Use the new network switching logic (will re-run executeSwap with skipNetworkCheck=true)
+          await requestNetworkSwitch(targetChainId, chain, () => {
+            executeSwap(tokenIn, tokenOut, amount, chain, true);
+          });
+          return;
         }
-      } catch (error) {
-        console.error('Error sending transaction:', error);
-        addMessage('assistant', 'There was an error processing the transaction. This could be due to insufficient funds, high gas prices, or a wallet issue. Would you like to try again with different parameters?');
       }
+       
+      // Send the transaction using the helper function
+      await sendSwapTransaction(normalizedResult, tokenIn, tokenOut, amount, chain, formattedBuyAmount);
     } catch (error) {
       console.error('Error executing swap:', error);
       addMessage('assistant', 'Sorry, I encountered an error while preparing your swap. Please try again with a different amount or tokens.');
     }
   };
 
-  // Wagmi hooks for transaction sending
-  const { data: walletClient } = useWalletClient();
-  const { sendTransactionAsync } = useSendTransaction();
-  
   // Function to send a simple test transaction to trigger wallet
   const sendTestTransaction = async () => {
     if (!isConnected || !address) {
@@ -1332,13 +1744,21 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
           console.log('Test transaction sent:', tx);
           addMessage('assistant', `✅ Test transaction submitted! Hash: \`${tx}\``);
           return;
-        } catch (err) {
+        } catch (err: any) {
           console.error('Error with direct provider:', err);
-          // Fall back to wagmi
+          
+          // Check if it's a user rejection - don't retry in this case
+          if (err.code === 4001 || err.message?.includes('User denied') || err.message?.includes('User rejected')) {
+            console.log('User rejected test transaction - not retrying');
+            throw err; // Re-throw to be handled by outer catch
+          }
+          
+          // Only fall back to wagmi for non-user-rejection errors
+          console.log('Falling back to wagmi for test transaction...');
         }
       }
       
-      // Fall back to wagmi
+      // Fall back to wagmi only if window.ethereum not available or non-rejection error
       console.log('Using wagmi for test transaction...');
       const tx = await sendTransactionAsync({
         to: address as `0x${string}`,
@@ -1352,29 +1772,253 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
     }
   };
 
+  // Add network change detection state
+  const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
+  const [pendingNetworkSwitch, setPendingNetworkSwitch] = useState<{
+    targetChainId: number;
+    chain: string;
+    callback: () => void;
+  } | null>(null);
+
+  // Listen for network changes
+  useEffect(() => {
+    const handleNetworkChange = () => {
+      // Clear network switching state when network changes
+      if (isNetworkSwitching) {
+        setIsNetworkSwitching(false);
+        
+        // Check if we have a pending network switch
+        if (pendingNetworkSwitch) {
+          const currentChainId = caipNetwork?.id;
+          const currentChainIdNumber = currentChainId ? extractChainIdFromCAIP(currentChainId) : null;
+          const targetChainId = pendingNetworkSwitch.targetChainId;
+          
+          console.log('Network changed during switch:', { 
+            currentChainId, 
+            currentChainIdNumber, 
+            targetChainId,
+            caipNetworkName: caipNetwork?.name 
+          });
+          
+          // Check if we're now on the correct network
+          if (currentChainIdNumber === targetChainId) {
+            console.log('Network switch successful, executing callback');
+            addMessage('assistant', `✅ Successfully switched to ${pendingNetworkSwitch.chain} network! Proceeding with the swap...`);
+            
+            // Execute the pending callback
+            setTimeout(() => {
+              pendingNetworkSwitch.callback();
+              setPendingNetworkSwitch(null);
+            }, 1000); // Small delay to ensure network state is fully updated
+          } else {
+            console.log('Network switch incomplete, current network:', currentChainId);
+            // Still not on the correct network, show message
+            const targetNetworkName = pendingNetworkSwitch.targetChainId === 42161 ? 'Arbitrum One' : 
+                                    pendingNetworkSwitch.targetChainId === 42170 ? 'Arbitrum Nova' : 
+                                    pendingNetworkSwitch.chain;
+            
+            addMessage('assistant', `It looks like your wallet is still not on the ${targetNetworkName} network. Please manually switch your wallet to **${targetNetworkName}** ${pendingNetworkSwitch.targetChainId === 42161 ? '(not Arbitrum Nova)' : ''} and try the swap again.`);
+            setPendingNetworkSwitch(null);
+          }
+        }
+      }
+    };
+
+    // Listen for network changes via AppKit
+    if (caipNetwork) {
+      handleNetworkChange();
+    }
+  }, [caipNetwork, isNetworkSwitching, pendingNetworkSwitch]);
+
+  // Add timeout for network switching
+  useEffect(() => {
+    if (isNetworkSwitching && pendingNetworkSwitch) {
+      const timeoutId = setTimeout(() => {
+        if (isNetworkSwitching) {
+          console.log('Network switch timeout reached');
+          setIsNetworkSwitching(false);
+          // Clear cached quote data on timeout to ensure fresh data for retry
+          setCachedQuoteData(null);
+          addMessage('assistant', `The network switch is taking longer than expected. Please manually switch your wallet to ${pendingNetworkSwitch.chain} network and try the swap again.`);
+          setPendingNetworkSwitch(null);
+        }
+      }, 45000); // 45 second timeout to account for network switching delays
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isNetworkSwitching, pendingNetworkSwitch]);
+
+
+
+  // Direct network switching function (bypasses AppKit modal)
+  const requestNetworkSwitch = async (targetChainId: number, chain: string, callback: () => void) => {
+    const currentChainId = caipNetwork?.id;
+    const currentChainIdNumber = currentChainId ? extractChainIdFromCAIP(currentChainId) : null;
+    
+    console.log('Network comparison:', { 
+      currentChainId, 
+      currentChainIdNumber, 
+      targetChainId, 
+      chain,
+      caipNetworkName: caipNetwork?.name 
+    });
+    
+    // Validate target chain ID
+    if (!targetChainId) {
+      console.error('Invalid target chain ID for chain:', chain);
+      addMessage('assistant', `I don't recognize the "${chain}" network. Please use a supported network like Ethereum, Arbitrum, Base, Polygon, or Avalanche.`);
+      return;
+    }
+    
+    // Check if we're already on the correct network
+    if (currentChainIdNumber === targetChainId) {
+      console.log('Already on the correct network');
+      callback();
+      return;
+    }
+    
+    // Check if we're already switching networks
+    if (isNetworkSwitching) {
+      console.log('Network switch already in progress');
+      addMessage('assistant', 'Network switch is already in progress. Please wait...');
+      return;
+    }
+    
+    setIsNetworkSwitching(true);
+    setPendingNetworkSwitch({ targetChainId, chain, callback });
+    
+    // Check if wallet provider is available
+    if (typeof window === 'undefined' || !window.ethereum) {
+      setIsNetworkSwitching(false);
+      setPendingNetworkSwitch(null);
+      addMessage('assistant', `No wallet provider detected. Please manually switch your wallet to ${chain} network and try the swap again.`);
+      return;
+    }
+    
+    try {
+      const hexChainId = '0x' + targetChainId.toString(16);
+      const chainConfig = getChainByName(chain);
+      
+      // Define network configurations
+      const networkConfigs = {
+        42161: { // Arbitrum One
+          chainName: 'Arbitrum One',
+          rpcUrl: 'https://arb1.arbitrum.io/rpc',
+          blockExplorer: 'https://arbiscan.io',
+          symbol: 'ETH'
+        },
+        1: { // Ethereum
+          chainName: 'Ethereum Mainnet',
+          rpcUrl: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+          blockExplorer: 'https://etherscan.io',
+          symbol: 'ETH'
+        },
+        11155111: { // Sepolia
+          chainName: 'Sepolia Testnet',
+          rpcUrl: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+          blockExplorer: 'https://sepolia.etherscan.io',
+          symbol: 'ETH'
+        },
+        8453: { // Base
+          chainName: 'Base',
+          rpcUrl: 'https://mainnet.base.org',
+          blockExplorer: 'https://basescan.org',
+          symbol: 'ETH'
+        },
+        137: { // Polygon
+          chainName: 'Polygon Mainnet',
+          rpcUrl: 'https://polygon-rpc.com',
+          blockExplorer: 'https://polygonscan.com',
+          symbol: 'MATIC'
+        },
+        43114: { // Avalanche
+          chainName: 'Avalanche Network C-Chain',
+          rpcUrl: 'https://api.avax.network/ext/bc/C/rpc',
+          blockExplorer: 'https://snowtrace.io',
+          symbol: 'AVAX'
+        }
+      };
+      
+      const networkConfig = networkConfigs[targetChainId as keyof typeof networkConfigs];
+      const targetNetworkName = networkConfig?.chainName || chainConfig?.name || chain;
+      
+      console.log('Requesting direct network switch to:', { hexChainId, targetNetworkName });
+      
+      addMessage('assistant', `Switching to **${targetNetworkName}** (Chain ID: ${targetChainId})... Please approve in your wallet.`);
+      
+      try {
+        // First try to switch to existing network
+        await (window.ethereum as any).request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: hexChainId }],
+        });
+        
+        console.log('Network switch request sent successfully');
+        // Don't execute callback here - wait for network change event
+        
+      } catch (switchError: any) {
+        console.log('Switch failed, attempting to add network. Error:', switchError);
+        
+        // If network doesn't exist (error 4902), add it
+        if (switchError.code === 4902 && networkConfig) {
+          try {
+            await (window.ethereum as any).request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: hexChainId,
+                chainName: networkConfig.chainName,
+                nativeCurrency: {
+                  name: networkConfig.symbol,
+                  symbol: networkConfig.symbol,
+                  decimals: 18
+                },
+                rpcUrls: [networkConfig.rpcUrl],
+                blockExplorerUrls: [networkConfig.blockExplorer]
+              }]
+            });
+            
+            console.log('Network added successfully');
+            addMessage('assistant', `Added **${networkConfig.chainName}** to your wallet! The network switch should happen automatically now.`);
+            
+          } catch (addError) {
+            console.error('Error adding network:', addError);
+            setIsNetworkSwitching(false);
+            setPendingNetworkSwitch(null);
+            addMessage('assistant', `Failed to add ${targetNetworkName} to your wallet. Please add it manually and try the swap again.`);
+          }
+        } else if (switchError.code === 4001) {
+          // User rejected the request
+          console.log('User rejected network switch');
+          setIsNetworkSwitching(false);
+          setPendingNetworkSwitch(null);
+          addMessage('assistant', `Network switch was cancelled. You can retry the swap or manually switch to ${targetNetworkName}.`);
+        } else {
+          // Other error
+          console.error('Unexpected error during network switch:', switchError);
+          setIsNetworkSwitching(false);
+          setPendingNetworkSwitch(null);
+          addMessage('assistant', `Network switch failed. Please manually switch your wallet to ${targetNetworkName} and try the swap again.`);
+        }
+      }
+    } catch (error) {
+      console.error('Error in network switch request:', error);
+      setIsNetworkSwitching(false);
+      setPendingNetworkSwitch(null);
+      addMessage('assistant', `There was an error requesting the network switch. Please manually switch your wallet to ${chain} network and try the swap again.`);
+    }
+  };
+
   return (
     <Card className="w-full h-[calc(100vh-180px)] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-xl">SnapFAI Chat</CardTitle>
         <div className="flex items-center gap-4">
           <WalletSummary />
-          {process.env.NODE_ENV === 'development' && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSwapRequest('ETH', 'USDT', 0.0005, 'ethereum')}
-              >
-                Test Swap
-              </Button>
-              <Button
-                variant="outline" 
-                size="sm"
-                onClick={() => sendTestTransaction()}
-              >
-                Test Send
-              </Button>
-            </>
+          {isNetworkSwitching && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-orange-100 dark:bg-orange-900 rounded-full">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm font-medium">Switching Network...</span>
+            </div>
           )}
           <Button
             variant="ghost"
@@ -1465,7 +2109,12 @@ Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${token
                     </div>
                   ) : (
                     <div className="prose dark:prose-invert prose-sm max-w-none break-words">
-                      <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                      <ReactMarkdown 
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          a: CustomLink
+                        }}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     </div>

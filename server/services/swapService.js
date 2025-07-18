@@ -10,10 +10,17 @@ const INFURA_KEY = process.env.INFURA_KEY;
 const ZERO_X_BASE_URL = 'https://api.0x.org';
 const ODOS_BASE_URL = 'https://api.odos.xyz';
 
-// Chain ID mappings
+// Import the centralized chain configuration
+const { getChainId } = require('../../lib/chains');
+
+// Chain ID mappings (keeping for backward compatibility)
 const CHAIN_IDS = {
   ethereum: 1,
-  arbitrum: 42161
+  arbitrum: 42161,
+  sepolia: 11155111,
+  base: 8453,
+  polygon: 137,
+  avalanche: 43114
 };
 
 /**
@@ -25,7 +32,11 @@ async function getZeroXQuote(params) {
   try {
     const { tokenIn, tokenOut, amount, chain } = params;
     
-    const chainId = CHAIN_IDS[chain.toLowerCase()];
+    // Use the centralized chain resolution with fallback to legacy mapping
+    let chainId = getChainId ? getChainId(chain) : null;
+    if (!chainId) {
+      chainId = CHAIN_IDS[chain.toLowerCase()];
+    }
     if (!chainId) {
       throw new Error(`Unsupported chain: ${chain}`);
     }
@@ -71,7 +82,11 @@ async function getOdosQuote(params) {
   try {
     const { tokenIn, tokenOut, amount, chain } = params;
     
-    const chainId = CHAIN_IDS[chain.toLowerCase()];
+    // Use the centralized chain resolution with fallback to legacy mapping
+    let chainId = getChainId ? getChainId(chain) : null;
+    if (!chainId) {
+      chainId = CHAIN_IDS[chain.toLowerCase()];
+    }
     if (!chainId) {
       throw new Error(`Unsupported chain: ${chain}`);
     }

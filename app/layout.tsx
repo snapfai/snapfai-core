@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/Header"
 import { Toaster } from "@/components/ui/toaster"
 import { headers } from 'next/headers'
-import ContextProvider from '@/context'
+import { ContextProvider } from '@/context'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,7 +26,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ContextProvider cookies={cookies}>
+        <ContextProvider cookies={cookies || undefined}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <Header />
             <main className="min-h-[calc(100vh-64px)]">{children}</main>

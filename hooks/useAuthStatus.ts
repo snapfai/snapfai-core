@@ -91,6 +91,8 @@ export default function useAuthStatus() {
     }
   }
   
+  // Removed auto-signature feature as it was causing WalletConnect connection issues
+  
   return {
     authStatus,
     isAuthenticated: authStatus === 'authenticated',
