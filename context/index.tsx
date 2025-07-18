@@ -1,11 +1,11 @@
 'use client'
 
-import { wagmiAdapter, projectId, networks, solanaAdapter, bitcoinAdapter } from '@/config'
+import { wagmiAdapter, projectId, networks } from '@/config'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createAppKit } from '@reown/appkit/react'
 import { mainnet, polygon } from '@reown/appkit/networks'
 import { WagmiProvider, type Config } from 'wagmi'
-import { arbitrumOneChain, baseChain, optimismChain, avalancheChain, sepoliaChain } from '@/config/custom-networks'
+import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from '@/config/custom-networks'
 import React, { type ReactNode } from 'react'
 
 // Set up queryClient
@@ -17,10 +17,10 @@ if (!projectId) {
 
 // Create the modal
 const modal = createAppKit({
-  // Updated to use multi-adapter approach
-  adapters: [wagmiAdapter, solanaAdapter, bitcoinAdapter],
+  // Updated to use only wagmiAdapter since we removed Solana and Bitcoin
+  adapters: [wagmiAdapter],
   projectId,
-  networks: [mainnet, polygon, arbitrumOneChain, baseChain, optimismChain, avalancheChain, sepoliaChain],
+  networks: [mainnet, arbitrumOneChain, baseChain, optimismChain, avalancheChain],
   defaultNetwork: mainnet,
   metadata: {
     name: 'SnapFAI',

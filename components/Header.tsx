@@ -34,7 +34,7 @@ const Header = () => {
                 <Link href="/" className="flex items-center gap-2">
                   <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
                   <span className="font-bold text-xl">SnapFAI</span>
-                  <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">AI-Powered</span>
+                  <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
                 </Link>
                 <SheetClose asChild>
                   <Button variant="ghost" size="icon">
@@ -47,28 +47,13 @@ const Header = () => {
                 <Link href="/" className="text-lg font-medium">
                   Home
                 </Link>
-                <Link href="#features" className="text-lg font-medium">
+                <Link href="/#features" className="text-lg font-medium">
                   Features
-                </Link>
-                <Link href="#how-it-works" className="text-lg font-medium">
-                  How It Works
                 </Link>
                 <Link href="/snap" className="text-lg font-medium">
                   Snap
                 </Link>
-                {isConnected && (
-                  <>
-                    <Link href="/wallet" className="text-lg font-medium flex items-center gap-2">
-                      <Wallet className="h-5 w-5" />
-                      Wallet
-                    </Link>
-                    <Link href="/swap" className="text-lg font-medium flex items-center gap-2">
-                      <ArrowUpDown className="h-5 w-5" />
-                      Swap
-                    </Link>
-                  </>
-                )}
-                <Link href="#" className="text-lg font-medium">
+                <Link href="https://docs.snapfai.com/" className="text-lg font-medium">
                   Docs
                 </Link>
               </nav>
@@ -78,7 +63,7 @@ const Header = () => {
           <Link href="/" className="flex items-center gap-2">
             <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
             <span className="font-bold text-xl">SnapFAI</span>
-            <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">AI-Powered</span>
+            <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
           </Link>
         </div>
         
@@ -86,28 +71,13 @@ const Header = () => {
           <Link href="/" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Home
           </Link>
-          <Link href="#features" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
+          <Link href="/#features" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Features
-          </Link>
-          <Link href="#how-it-works" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
-            How It Works
           </Link>
           <Link href="/snap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Snap
           </Link>
-          {isConnected && (
-            <>
-              <Link href="/wallet" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
-                <Wallet className="h-4 w-4" />
-                Wallet
-              </Link>
-              <Link href="/swap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
-                <ArrowUpDown className="h-4 w-4" />
-                Swap
-              </Link>
-            </>
-          )}
-          <Link href="#" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
+          <Link href="https://docs.snapfai.com/" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Docs
           </Link>
         </nav>

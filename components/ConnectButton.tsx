@@ -102,10 +102,6 @@ export default function ConnectButton() {
     switch (caipNetwork?.chainNamespace) {
       case 'eip155':
         return 'Ethereum'
-      case 'solana':
-        return 'Solana'
-      case 'bip122':
-        return 'Bitcoin'
       default:
         return 'Unknown'
     }
@@ -116,10 +112,6 @@ export default function ConnectButton() {
     switch (caipNetwork?.chainNamespace) {
       case 'eip155':
         return 'bg-blue-500'
-      case 'solana':
-        return 'bg-green-500'
-      case 'bip122':
-        return 'bg-orange-500'
       default:
         return 'bg-gray-500'
     }
