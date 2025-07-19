@@ -15,7 +15,7 @@ export default function Home() {
         {/* Hero Section */}
         <section className="py-12 md:py-20 lg:py-28 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-snapfai-white via-snapfai-sand to-snapfai-lightyellow dark:from-snapfai-navy dark:via-gray-900 dark:to-black" />
-          <div className="container relative z-10 px-4">
+          <div className="container relative z-10">
             <div className="max-w-3xl mx-auto text-center mb-8 md:mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-snapfai-amber/10 dark:bg-snapfai-amber/20 rounded-full mb-4">
                 <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-snapfai-amber" />
@@ -24,11 +24,11 @@ export default function Home() {
               <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 md:mb-6 dark:text-white">
                 Your Smart, Easy, and Magical DeFi Experience
               </h1>
-              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-200 mb-6 md:mb-8 px-4">
+              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-200 mb-6 md:mb-8">
                 Interact with DeFi through natural language. Swap tokens, lend assets, and explore yield farming with a
                 simple chat interface.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
                 <Link href="/snap" className="w-full sm:w-auto">
                   <Button size="lg" className="w-full sm:w-auto bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
                     Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
@@ -42,7 +42,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="relative mx-auto max-w-4xl rounded-xl border shadow-lg bg-white dark:bg-gray-800 dark:border-gray-700 mx-4">
+            <div className="relative mx-auto max-w-4xl rounded-xl border shadow-lg bg-white dark:bg-gray-800 dark:border-gray-700">
               <div className="p-3 md:p-4 border-b bg-snapfai-sand/50 dark:bg-gray-700 dark:border-gray-600 rounded-t-xl flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-red-500" />
@@ -87,14 +87,14 @@ export default function Home() {
 
         {/* Slogan Section */}
         <section className="py-8 md:py-12 bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black">
-          <div className="container text-center px-4">
+          <div className="container text-center">
             <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold">Doing DeFi like a Snap</h2>
           </div>
         </section>
 
         {/* Features Section */}
         <section id="features" className="py-16 md:py-20">
-          <div className="container px-4">
+          <div className="container">
             <div className="text-center mb-12 md:mb-16">
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 dark:text-white">Powerful Features</h2>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
@@ -139,7 +139,7 @@ export default function Home() {
 
         {/* How It Works Section */}
         <section id="how-it-works" className="py-16 md:py-20 bg-snapfai-sand/50 dark:bg-gray-900">
-          <div className="container px-4">
+          <div className="container">
             <div className="text-center mb-12 md:mb-16">
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 dark:text-white">How SnapFAI Works</h2>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
@@ -177,7 +177,7 @@ export default function Home() {
 
         {/* CTA Section */}
         <section className="py-16 md:py-20">
-          <div className="container px-4">
+          <div className="container">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 md:mb-6 dark:text-white">Ready to Experience DeFi Like Magic?</h2>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-6 md:mb-8">
@@ -195,7 +195,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t py-8 md:py-12 bg-snapfai-sand/30 dark:bg-gray-900 dark:border-gray-800">
-        <div className="container px-4">
+        <div className="container">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             <div className="sm:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-2 mb-4">

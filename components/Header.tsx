@@ -20,7 +20,7 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 md:h-16 items-center justify-between px-4">
+      <div className="container flex h-14 md:h-16 items-center justify-between">
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild className="lg:hidden">
@@ -29,7 +29,7 @@ const Header = () => {
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col w-80">
+            <SheetContent side="left" className="flex flex-col w-80 [&>button]:hidden">
               <div className="flex items-center justify-between mb-6">
                 <Link href="/" className="flex items-center gap-2">
                   <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
@@ -43,6 +43,13 @@ const Header = () => {
                   </Button>
                 </SheetClose>
               </div>
+              
+              {/* Mobile-only controls */}
+              <div className="flex items-center gap-3 mb-6 p-3 bg-muted/50 rounded-lg">
+                <ThemeToggle />
+                {isConnected && <NetworkSwitcher />}
+              </div>
+              
               <nav className="flex flex-col gap-3">
                 <Link href="/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Home
@@ -83,9 +90,11 @@ const Header = () => {
         </nav>
         
         <div className="flex items-center gap-2">
-          <ThemeToggle />
-          
-          {isConnected && <NetworkSwitcher />}
+          {/* Desktop-only controls */}
+          <div className="hidden lg:flex items-center gap-2">
+            <ThemeToggle />
+            {isConnected && <NetworkSwitcher />}
+          </div>
           
           {!isConnected && (
             <Button 

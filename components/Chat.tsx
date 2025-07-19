@@ -1128,10 +1128,7 @@ ${tokenSymbols}
 
 ## Quick Start
 - **Swap tokens**: "Swap 100 USDC to ETH"
-- **Check prices**: "What's the price of $ETH?"
-- **Get quotes**: "Get a quote for 50 USDT to LINK"
-
-Switch networks using the dropdown in the top right to access tokens on other chains!`;
+- **Check prices**: "What's the price of $ETH?"`;
   };
 
   // Send transaction helper function (to be used by executeSwap)
