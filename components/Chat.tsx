@@ -2130,25 +2130,6 @@ Just let me know what you'd prefer!`);
         <CardTitle className="text-base sm:text-lg">SnapFAI Agent</CardTitle>
         
         <div className="flex items-center gap-2">
-          {/* Mobile-only elements */}
-          <div className="flex items-center gap-2 sm:hidden">
-            {/* Mobile Live Search Toggle - Icon Only */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSearchOptions(!showSearchOptions)}
-              className={`p-2 h-8 w-8 ${showSearchOptions ? 'bg-primary/10' : ''} relative`}
-              title={useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {useLiveSearch && (
-                <div className="absolute -top-1 -right-1 h-2 w-2 bg-green-500 rounded-full"></div>
-              )}
-            </Button>
-          </div>
-          
           {/* Desktop-only elements */}
           <div className="hidden sm:flex items-center gap-4">
             <WalletSummary />
@@ -2158,14 +2139,6 @@ Just let me know what you'd prefer!`);
                 <span className="text-sm font-medium">Switching Network...</span>
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSearchOptions(!showSearchOptions)}
-              className={showSearchOptions ? 'bg-primary/10' : ''}
-            >
-              {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
-            </Button>
           </div>
         </div>
       </CardHeader>
@@ -2180,114 +2153,6 @@ Just let me know what you'd prefer!`);
           </div>
         )}
       </div>
-      
-      {showSearchOptions && (
-        <div className="px-3 sm:px-4 pb-3 border-b bg-gray-50 dark:bg-gray-900/50">
-          {/* Mobile Search Options */}
-          <div className="md:hidden space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Live Search</span>
-              <label className="inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox"
-                  checked={useLiveSearch}
-                  onChange={(e) => setUseLiveSearch(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="relative w-10 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-            
-            {useLiveSearch && (
-              <div className="space-y-3">
-                <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Sources:</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.web}
-                      onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm font-medium">Web</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.news}
-                      onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm font-medium">News</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.x}
-                      onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm font-medium">X</span>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Desktop Search Options */}
-          <div className="hidden md:flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium">Live Search:</span>
-              <div className="flex items-center">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox"
-                    checked={useLiveSearch}
-                    onChange={(e) => setUseLiveSearch(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-            
-            {useLiveSearch && (
-              <>
-                <div className="text-sm text-muted-foreground">Sources:</div>
-                <div className="flex gap-2">
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.web}
-                      onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    Web
-                  </label>
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.news}
-                      onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    News
-                  </label>
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.x}
-                      onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    X (Twitter)
-                  </label>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
       
       <CardContent className="flex-1 p-0 overflow-hidden">
         <ScrollArea ref={scrollAreaRef} className="h-full px-3 sm:px-4 py-3 sm:py-4">
@@ -2389,6 +2254,59 @@ Just let me know what you'd prefer!`);
             >
               {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
+          </div>
+          
+          {/* Live Search Toggle - Bottom of chat like ChatGPT/Grok */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setUseLiveSearch(!useLiveSearch)}
+                className={`h-8 px-2 text-xs ${useLiveSearch ? 'bg-primary/10' : ''}`}
+              >
+                <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
+                {useLiveSearch && (
+                  <div className="ml-1 h-2 w-2 bg-green-500 rounded-full"></div>
+                )}
+              </Button>
+            </div>
+            
+            {useLiveSearch && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Sources:</span>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.web}
+                    onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  Web
+                </label>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.news}
+                    onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  News
+                </label>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.x}
+                    onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  X
+                </label>
+              </div>
+            )}
           </div>
           
           {/* Quick Actions - Mobile: 2 buttons full width, Desktop: inline */}
