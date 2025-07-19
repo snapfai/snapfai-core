@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export default function ConnectButton() {
   const { address, isConnected, status } = useAppKitAccount()
@@ -35,6 +36,7 @@ export default function ConnectButton() {
   const [isClient, setIsClient] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     setIsClient(true)
@@ -50,6 +52,11 @@ export default function ConnectButton() {
 
   const truncateAddress = (address: string) => {
     if (!address) return ''
+    // Mobile: show 0x...xxx (3 characters at end)
+    // Desktop: show 0x...xxxx (4 characters at end)
+    if (isMobile) {
+      return `${address.slice(0, 4)}...${address.slice(-3)}`
+    }
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
@@ -128,7 +135,7 @@ export default function ConnectButton() {
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="flex items-center gap-2"
+            className={`flex items-center gap-2 ${isMobile ? 'px-2' : 'px-3'}`}
           >
             {walletInfo?.icon && (
               <img 
@@ -139,11 +146,15 @@ export default function ConnectButton() {
             )}
             {!walletInfo?.icon && <Wallet className="h-4 w-4" />}
             
-            {ensName || truncateAddress(address)}
+            <span className="text-sm font-medium">
+              {ensName || truncateAddress(address)}
+            </span>
             
-            <Badge className={`ml-1 px-1.5 py-0 text-[10px] font-normal ${getChainColor()}`}>
-              {caipNetwork?.name || 'Unknown'}
-            </Badge>
+            {!isMobile && (
+              <Badge className={`ml-1 px-1.5 py-0 text-[10px] font-normal ${getChainColor()}`}>
+                {caipNetwork?.name || 'Unknown'}
+              </Badge>
+            )}
             
             <ChevronDown className="h-4 w-4 ml-1" />
           </Button>

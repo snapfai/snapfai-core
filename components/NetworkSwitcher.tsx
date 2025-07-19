@@ -13,10 +13,13 @@ import { networks } from '@/config'
 import { extractChainIdFromCAIP, getChainById } from '@/lib/chains'
 import { useToast } from '@/components/ui/use-toast'
 import { useEffect } from 'react'
+import { ChainIcon, getChainName, getChainShortName } from '@/components/ui/chain-icons'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export default function NetworkSwitcher() {
   const { caipNetwork } = useAppKitNetwork()
   const { toast } = useToast()
+  const isMobile = useIsMobile()
 
   // Clear any cached AppKit data on component mount
   useEffect(() => {
@@ -155,42 +158,46 @@ export default function NetworkSwitcher() {
     }
   };
 
-  // Helper function to truncate chain names for mobile
-  const truncateChainName = (name: string) => {
-    if (name.length > 10) {
-      return name
-        .replace('Arbitrum One', 'Arbitrum')
-        .replace('Ethereum Mainnet', 'Ethereum')
-        .replace('Polygon Mainnet', 'Polygon')
-        .replace('Avalanche Network C-Chain', 'Avalanche')
-        .replace('Optimism Mainnet', 'Optimism')
-        .replace('Base Mainnet', 'Base');
-    }
-    return name;
-  };
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-1 max-w-[120px] sm:max-w-none">
-          <span className="truncate">
-            <span className="sm:hidden">{truncateChainName(caipNetwork.name)}</span>
-            <span className="hidden sm:inline">{caipNetwork.name}</span>
-          </span>
-          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+        <Button variant="outline" size="sm" className="flex items-center gap-2 h-9">
+          {/* Show icon on mobile, name on desktop */}
+          {isMobile ? (
+            <>
+              <ChainIcon chainId={currentChainId || 1} size={16} />
+              <span className="text-xs font-medium">
+                {getChainShortName(currentChainId || 1)}
+              </span>
+            </>
+          ) : (
+            <>
+              <ChainIcon chainId={currentChainId || 1} size={16} />
+              <span className="truncate max-w-[100px]">{caipNetwork.name}</span>
+            </>
+          )}
+          <ChevronDown className="h-3 w-3 flex-shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-48">
         {networks.map((network) => (
           <DropdownMenuItem
             key={network.id}
             onClick={() => switchToNetwork(network)}
             className="cursor-pointer"
           >
-            <div className="flex items-center gap-2">
-              {network.name}
+            <div className="flex items-center gap-3 w-full">
+              <ChainIcon chainId={network.id} size={20} />
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="font-medium truncate">{network.name}</span>
+                {isMobile && (
+                  <span className="text-xs text-muted-foreground">
+                    {getChainShortName(network.id)}
+                  </span>
+                )}
+              </div>
               {currentChainId === network.id && (
-                <span className="text-green-500">✓</span>
+                <span className="text-green-500 flex-shrink-0">✓</span>
               )}
             </div>
           </DropdownMenuItem>

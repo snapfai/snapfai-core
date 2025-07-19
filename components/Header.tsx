@@ -20,40 +20,40 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex h-14 md:h-16 items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon" aria-label="Toggle menu">
-                <Menu className="h-5 w-5" />
+              <Button variant="ghost" size="icon" aria-label="Toggle menu" className="h-8 w-8 md:h-10 md:w-10">
+                <Menu className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col">
-              <div className="flex items-center justify-between">
+            <SheetContent side="left" className="flex flex-col w-80">
+              <div className="flex items-center justify-between mb-6">
                 <Link href="/" className="flex items-center gap-2">
-                  <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
-                  <span className="font-bold text-xl">SnapFAI</span>
+                  <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
+                  <span className="font-bold text-lg md:text-xl">SnapFAI</span>
                   <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
                 </Link>
                 <SheetClose asChild>
-                  <Button variant="ghost" size="icon">
-                    <X className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <X className="h-4 w-4" />
                     <span className="sr-only">Close</span>
                   </Button>
                 </SheetClose>
               </div>
-              <nav className="mt-8 flex flex-col gap-4">
-                <Link href="/" className="text-lg font-medium">
+              <nav className="flex flex-col gap-3">
+                <Link href="/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Home
                 </Link>
-                <Link href="/#features" className="text-lg font-medium">
+                <Link href="/#features" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Features
                 </Link>
-                <Link href="/snap" className="text-lg font-medium">
+                <Link href="/snap" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Snap
                 </Link>
-                <Link href="https://docs.snapfai.com/" className="text-lg font-medium">
+                <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Docs
                 </Link>
               </nav>
@@ -61,8 +61,8 @@ const Header = () => {
           </Sheet>
           
           <Link href="/" className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
-            <span className="font-bold text-xl">SnapFAI</span>
+            <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
+            <span className="font-bold text-lg md:text-xl">SnapFAI</span>
             <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
           </Link>
         </div>
