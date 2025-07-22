@@ -1128,10 +1128,7 @@ ${tokenSymbols}
 
 ## Quick Start
 - **Swap tokens**: "Swap 100 USDC to ETH"
-- **Check prices**: "What's the price of $ETH?"
-- **Get quotes**: "Get a quote for 50 USDT to LINK"
-
-Switch networks using the dropdown in the top right to access tokens on other chains!`;
+- **Check prices**: "What's the price of $ETH?"`;
   };
 
   // Send transaction helper function (to be used by executeSwap)
@@ -2128,30 +2125,11 @@ Just let me know what you'd prefer!`);
   };
 
   return (
-    <Card className="w-full h-[calc(100vh-180px)] flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-lg sm:text-xl">SnapFAI Agent</CardTitle>
+    <Card className="w-full h-[calc(100vh-120px)] sm:h-[calc(100vh-180px)] flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6">
+        <CardTitle className="text-base sm:text-lg">SnapFAI Agent</CardTitle>
         
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Mobile-only elements */}
-          <div className="flex items-center gap-2 sm:hidden">
-            {/* Mobile Live Search Toggle - Icon Only */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSearchOptions(!showSearchOptions)}
-              className={`p-2 ${showSearchOptions ? 'bg-primary/10' : ''} relative`}
-              title={useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {useLiveSearch && (
-                <div className="absolute -top-1 -right-1 h-2 w-2 bg-green-500 rounded-full"></div>
-              )}
-            </Button>
-          </div>
-          
+        <div className="flex items-center gap-2">
           {/* Desktop-only elements */}
           <div className="hidden sm:flex items-center gap-4">
             <WalletSummary />
@@ -2161,20 +2139,12 @@ Just let me know what you'd prefer!`);
                 <span className="text-sm font-medium">Switching Network...</span>
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSearchOptions(!showSearchOptions)}
-              className={showSearchOptions ? 'bg-primary/10' : ''}
-            >
-              {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
-            </Button>
           </div>
         </div>
       </CardHeader>
       
       {/* Mobile wallet summary - separate row */}
-      <div className="flex items-center justify-between px-6 pb-2 sm:hidden">
+      <div className="flex items-center justify-between px-4 pb-2 sm:hidden">
         <WalletSummary />
         {isNetworkSwitching && (
           <div className="flex items-center gap-2 px-2 py-1 bg-orange-100 dark:bg-orange-900 rounded-full">
@@ -2183,114 +2153,6 @@ Just let me know what you'd prefer!`);
           </div>
         )}
       </div>
-      
-      {showSearchOptions && (
-        <div className="px-4 pb-3 border-b bg-gray-50 dark:bg-gray-900/50">
-          {/* Mobile Search Options */}
-          <div className="md:hidden space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Live Search</span>
-              <label className="inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox"
-                  checked={useLiveSearch}
-                  onChange={(e) => setUseLiveSearch(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-            
-            {useLiveSearch && (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-600 dark:text-gray-400">Sources:</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.web}
-                      onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm">Web</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.news}
-                      onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm">News</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.x}
-                      onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm">X</span>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Desktop Search Options */}
-          <div className="hidden md:flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium">Live Search:</span>
-              <div className="flex items-center">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox"
-                    checked={useLiveSearch}
-                    onChange={(e) => setUseLiveSearch(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-            
-            {useLiveSearch && (
-              <>
-                <div className="text-sm text-muted-foreground">Sources:</div>
-                <div className="flex gap-2">
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.web}
-                      onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    Web
-                  </label>
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.news}
-                      onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    News
-                  </label>
-                  <label className="flex items-center gap-1 text-sm">
-                    <input 
-                      type="checkbox" 
-                      checked={searchSources.x}
-                      onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    X (Twitter)
-                  </label>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
       
       <CardContent className="flex-1 p-0 overflow-hidden">
         <ScrollArea ref={scrollAreaRef} className="h-full px-3 sm:px-4 py-3 sm:py-4">
@@ -2301,7 +2163,7 @@ Just let me know what you'd prefer!`);
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div 
-                  className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-3 rounded-lg ${
+                  className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-lg ${
                     message.role === 'user' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
@@ -2310,11 +2172,11 @@ Just let me know what you'd prefer!`);
                   {message.isLoading ? (
                     <div className="flex items-center space-x-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm sm:text-base">{message.content}</span>
+                      <span className="text-sm">{message.content}</span>
                     </div>
                   ) : (
                     <>
-                      <div className="prose dark:prose-invert prose-sm sm:prose-sm max-w-none break-words">
+                      <div className="prose dark:prose-invert prose-sm max-w-none break-words [&_h1]:text-lg [&_h1]:sm:text-xl [&_h2]:text-base [&_h2]:sm:text-lg [&_h3]:text-sm [&_h3]:sm:text-base [&_p]:text-sm [&_p]:sm:text-base [&_li]:text-sm [&_li]:sm:text-base [&_code]:text-xs [&_code]:sm:text-sm">
                         <ReactMarkdown 
                           rehypePlugins={[rehypeRaw]}
                           components={{
@@ -2326,19 +2188,19 @@ Just let me know what you'd prefer!`);
                       </div>
                       {/* Show confirmation buttons if this is the confirmation message */}
                       {showConfirmationButtons && confirmationMessageId === message.id && (
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4 mb-2">
+                        <div className="flex flex-col gap-3 mt-4 mb-2">
                           <Button 
                             onClick={() => handleSwapConfirmation(true)}
-                            className="w-full sm:flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 sm:py-2 px-4 rounded-lg transition-colors min-h-[44px] text-base sm:text-sm"
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
                           >
-                            Yes, Execute Swap
+                            ✅ Yes, Execute Swap
                           </Button>
                           <Button 
                             onClick={() => handleSwapConfirmation(false)}
                             variant="outline"
-                            className="w-full sm:flex-1 border-red-300 text-red-600 hover:bg-red-50 font-medium py-3 sm:py-2 px-4 rounded-lg transition-colors min-h-[44px] text-base sm:text-sm"
+                            className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
                           >
-                            No, Cancel
+                            ❌ No, Cancel
                           </Button>
                         </div>
                       )}
@@ -2353,14 +2215,14 @@ Just let me know what you'd prefer!`);
         </ScrollArea>
       </CardContent>
       
-      <CardFooter className="pt-2 pb-4 px-4">
+      <CardFooter className="pt-2 pb-4 px-3 sm:px-4">
         <form onSubmit={handleSubmit(handleSendMessage)} className="w-full">
           <div className="flex gap-2 items-end">
             <div className="flex-1 relative">
               <Textarea
                 {...register('message', { required: true })}
-                placeholder="Type your message..."
-                className="min-h-[44px] md:min-h-[50px] flex-1 resize-none pr-12 md:pr-4 text-base md:text-sm"
+                placeholder="Ask me anything about DeFi..."
+                className="min-h-[48px] md:min-h-[50px] flex-1 resize-none pr-12 md:pr-4 text-base md:text-sm rounded-xl"
                 disabled={isProcessing}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -2379,7 +2241,7 @@ Just let me know what you'd prefer!`);
                 type="submit" 
                 size="icon"
                 disabled={isProcessing || !isValid}
-                className="absolute right-2 bottom-2 h-8 w-8 md:hidden rounded-full"
+                className="absolute right-2 bottom-2 h-8 w-8 md:hidden rounded-full bg-primary hover:bg-primary/90"
               >
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
@@ -2390,14 +2252,67 @@ Just let me know what you'd prefer!`);
               type="submit" 
               size="icon"
               disabled={isProcessing || !isValid}
-              className="hidden md:flex h-[50px] w-[50px]"
+              className="hidden md:flex h-[50px] w-[50px] rounded-xl"
             >
               {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
           </div>
           
-          {/* Quick Actions - Both Mobile and Desktop: 2 buttons */}
-          <div className="flex gap-2 mt-2 w-full">
+          {/* Live Search Toggle - Bottom of chat like ChatGPT/Grok */}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setUseLiveSearch(!useLiveSearch)}
+                className={`h-8 px-2 text-xs ${useLiveSearch ? 'bg-primary/10' : ''}`}
+              >
+                <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {useLiveSearch ? 'Live Search: On' : 'Live Search: Off'}
+                {useLiveSearch && (
+                  <div className="ml-1 h-2 w-2 bg-green-500 rounded-full"></div>
+                )}
+              </Button>
+            </div>
+            
+            {useLiveSearch && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Sources:</span>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.web}
+                    onChange={(e) => setSearchSources({...searchSources, web: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  Web
+                </label>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.news}
+                    onChange={(e) => setSearchSources({...searchSources, news: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  News
+                </label>
+                <label className="flex items-center gap-1">
+                  <input 
+                    type="checkbox" 
+                    checked={searchSources.x}
+                    onChange={(e) => setSearchSources({...searchSources, x: e.target.checked})}
+                    className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  X
+                </label>
+              </div>
+            )}
+          </div>
+          
+          {/* Quick Actions - Mobile: 2 buttons full width, Desktop: inline */}
+          <div className="flex gap-2 mt-3 w-full">
             <Button 
               type="button" 
               variant="outline" 
@@ -2410,7 +2325,7 @@ Just let me know what you'd prefer!`);
                   textarea.focus();
                 }
               }}
-              className="flex-1 sm:flex-none text-xs px-3 py-1 h-7 md:h-8 md:px-4 md:text-sm"
+              className="flex-1 sm:flex-none text-xs px-3 py-2 h-8 md:h-8 md:px-4 md:text-sm rounded-lg"
             >
               💰 Price
             </Button>
@@ -2426,7 +2341,7 @@ Just let me know what you'd prefer!`);
                   textarea.focus();
                 }
               }}
-              className="flex-1 sm:flex-none text-xs px-3 py-1 h-7 md:h-8 md:px-4 md:text-sm"
+              className="flex-1 sm:flex-none text-xs px-3 py-2 h-8 md:h-8 md:px-4 md:text-sm rounded-lg"
             >
               🔄 Swap
             </Button>

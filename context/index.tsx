@@ -6,6 +6,7 @@ import { createAppKit } from '@reown/appkit/react'
 import { mainnet, polygon } from '@reown/appkit/networks'
 import { WagmiProvider, type Config } from 'wagmi'
 import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from '@/config/custom-networks'
+import { siweConfig } from '@/lib/siwe-config'
 import React, { type ReactNode } from 'react'
 
 // Set up queryClient
@@ -44,9 +45,26 @@ const modal = createAppKit({
   termsConditionsUrl: 'https://snapfai.com/terms',
   privacyPolicyUrl: 'https://snapfai.com/privacy',
   
-  // Disable SIWE to avoid signature requirements during connection
-  // siweConfig: siweConfig,
+  // Enable SIWE for proper connect and sign flow - chain agnostic
+  siweConfig: siweConfig,
 })
+
+// Add SIWE event debugging
+if (typeof window !== 'undefined') {
+  // Listen for AppKit events to debug SIWE behavior
+  modal.subscribeEvents((event) => {
+    console.log('🎯 AppKit Event:', event)
+    
+    // Check for specific event properties that might indicate SIWE or network changes
+    if (event.data?.event === 'CONNECT_SUCCESS') {
+      console.log('🔗 AppKit: Wallet connected')
+    } else if (event.data?.event === 'DISCONNECT_SUCCESS') {
+      console.log('👋 AppKit: Wallet disconnected')
+    } else if (event.data?.event === 'SWITCH_NETWORK') {
+      console.log('🌐 AppKit: Network switch detected')
+    }
+  })
+}
 
 export function ContextProvider({ children, cookies }: { children: ReactNode, cookies?: string }) {
   // Add error handling for wallet connections

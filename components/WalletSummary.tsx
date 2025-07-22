@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Wallet, CircleCheck, CircleX } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getNativeTokenSymbol, extractChainIdFromCAIP } from '@/lib/chains'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 type BalanceResult = {
   data?: {
@@ -33,6 +34,7 @@ export default function WalletSummary() {
   } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (isConnected && address) {
@@ -148,6 +150,11 @@ export default function WalletSummary() {
   }
 
   const truncateAddress = (addr: string) => {
+    // Mobile: show 0x...xxx (3 characters at end)
+    // Desktop: show 0x...xxxx (4 characters at end)
+    if (isMobile) {
+      return `${addr.slice(0, 4)}...${addr.slice(-3)}`
+    }
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
 
@@ -173,8 +180,9 @@ export default function WalletSummary() {
               ) : (
                 <Wallet className="h-4 w-4 mr-1" />
               )}
-              <span className="hidden sm:inline">{truncateAddress(address)}</span>
-              <span className="sm:hidden">{address.slice(0, 4)}...{address.slice(-2)}</span>
+              <span className="font-medium">
+                {truncateAddress(address)}
+              </span>
             </div>
             
             {caipNetwork && (

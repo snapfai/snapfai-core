@@ -13,29 +13,29 @@ export default function Home() {
       <HomeClientWrapper>
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="py-20 md:py-28 relative overflow-hidden">
+        <section className="py-12 md:py-20 lg:py-28 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-snapfai-white via-snapfai-sand to-snapfai-lightyellow dark:from-snapfai-navy dark:via-gray-900 dark:to-black" />
           <div className="container relative z-10">
-            <div className="max-w-3xl mx-auto text-center mb-12">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-snapfai-amber/10 dark:bg-snapfai-amber/20 rounded-full mb-4">
-                <Sparkles className="h-4 w-4 text-snapfai-amber" />
-                <span className="text-sm font-medium">Powered by AI and blockchain intelligence</span>
+            <div className="max-w-3xl mx-auto text-center mb-8 md:mb-12">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-snapfai-amber/10 dark:bg-snapfai-amber/20 rounded-full mb-4">
+                <Sparkles className="h-3 w-3 md:h-4 md:w-4 text-snapfai-amber" />
+                <span className="text-xs md:text-sm font-medium">Powered by AI and blockchain intelligence</span>
               </div>
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 dark:text-white">
+              <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4 md:mb-6 dark:text-white">
                 Your Smart, Easy, and Magical DeFi Experience
               </h1>
-              <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-200 mb-8">
+              <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 dark:text-gray-200 mb-6 md:mb-8">
                 Interact with DeFi through natural language. Swap tokens, lend assets, and explore yield farming with a
                 simple chat interface.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/snap">
-                  <Button size="lg" className="bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
+                <Link href="/snap" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full sm:w-auto bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
                     Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="https://docs.snapfai.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2">
-                  <Button size="lg" variant="outline" className="dark:border-gray-700 dark:text-gray-200">
+                <Link href="https://docs.snapfai.com" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto dark:border-gray-700 dark:text-gray-200">
                     Read Docs
                   </Button>
                 </Link>
@@ -43,39 +43,39 @@ export default function Home() {
             </div>
 
             <div className="relative mx-auto max-w-4xl rounded-xl border shadow-lg bg-white dark:bg-gray-800 dark:border-gray-700">
-              <div className="p-4 border-b bg-snapfai-sand/50 dark:bg-gray-700 dark:border-gray-600 rounded-t-xl flex justify-between items-center">
+              <div className="p-3 md:p-4 border-b bg-snapfai-sand/50 dark:bg-gray-700 dark:border-gray-600 rounded-t-xl flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-red-500" />
-                  <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                  <div className="h-3 w-3 rounded-full bg-green-500" />
+                  <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-red-500" />
+                  <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-yellow-500" />
+                  <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-green-500" />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-snapfai-amber/20 text-snapfai-black dark:text-snapfai-amber px-2 py-0.5 rounded-full">SnapFAI</span>
                 </div>
               </div>
-              <div className="p-6 space-y-4">
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-snapfai-amber flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-4 w-4 text-snapfai-black" />
+              <div className="p-4 md:p-6 space-y-3 md:space-y-4">
+                <div className="flex gap-3 md:gap-4">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-snapfai-amber flex items-center justify-center flex-shrink-0">
+                    <Zap className="h-3 w-3 md:h-4 md:w-4 text-snapfai-black" />
                   </div>
-                  <div className="bg-snapfai-sand dark:bg-gray-700 rounded-lg p-3 max-w-[80%] shadow-sm">
-                    <p className="text-sm dark:text-gray-200">How can I help you with DeFi today?</p>
-                  </div>
-                </div>
-                <div className="flex gap-4 justify-end">
-                  <div className="bg-snapfai-lightyellow dark:bg-snapfai-amber/20 rounded-lg p-3 max-w-[80%] shadow-sm">
-                    <p className="text-sm dark:text-gray-200">I want to swap 500 USDT to ETH on Arbitrum</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-snapfai-silver dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-medium dark:text-white">U</span>
+                  <div className="bg-snapfai-sand dark:bg-gray-700 rounded-lg p-2.5 md:p-3 max-w-[85%] shadow-sm">
+                    <p className="text-xs md:text-sm dark:text-gray-200">How can I help you with DeFi today?</p>
                   </div>
                 </div>
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-snapfai-amber flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-4 w-4 text-snapfai-black" />
+                <div className="flex gap-3 md:gap-4 justify-end">
+                  <div className="bg-snapfai-lightyellow dark:bg-snapfai-amber/20 rounded-lg p-2.5 md:p-3 max-w-[85%] shadow-sm">
+                    <p className="text-xs md:text-sm dark:text-gray-200">I want to swap 500 USDT to ETH on Arbitrum</p>
                   </div>
-                  <div className="bg-snapfai-sand dark:bg-gray-700 rounded-lg p-3 max-w-[80%] shadow-sm">
-                    <p className="text-sm dark:text-gray-200">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-snapfai-silver dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs md:text-sm font-medium dark:text-white">U</span>
+                  </div>
+                </div>
+                <div className="flex gap-3 md:gap-4">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-snapfai-amber flex items-center justify-center flex-shrink-0">
+                    <Zap className="h-3 w-3 md:h-4 md:w-4 text-snapfai-black" />
+                  </div>
+                  <div className="bg-snapfai-sand dark:bg-gray-700 rounded-lg p-2.5 md:p-3 max-w-[85%] shadow-sm">
+                    <p className="text-xs md:text-sm dark:text-gray-200">
                       I found the best rate on 1inch: 500 USDT ≈ 0.1243 ETH. Would you like to proceed with this swap?
                     </p>
                   </div>
@@ -86,23 +86,23 @@ export default function Home() {
         </section>
 
         {/* Slogan Section */}
-        <section className="py-12 bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black">
+        <section className="py-8 md:py-12 bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black">
           <div className="container text-center">
-            <h2 className="text-3xl md:text-4xl font-bold">Doing DeFi like a Snap</h2>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold">Doing DeFi like a Snap</h2>
           </div>
         </section>
 
         {/* Features Section */}
-        <section id="features" className="py-20">
+        <section id="features" className="py-16 md:py-20">
           <div className="container">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 dark:text-white">Powerful Features</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 dark:text-white">Powerful Features</h2>
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
                 SnapFAI transforms how you engage with decentralized finance through these key capabilities
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
               <FeatureCard
                 icon={<Layers className="h-6 w-6 text-snapfai-amber" />}
                 title="Cross-Chain Interactions"
@@ -138,49 +138,49 @@ export default function Home() {
         </section>
 
         {/* How It Works Section */}
-        <section id="how-it-works" className="py-20 bg-snapfai-sand/50 dark:bg-gray-900">
+        <section id="how-it-works" className="py-16 md:py-20 bg-snapfai-sand/50 dark:bg-gray-900">
           <div className="container">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 dark:text-white">How SnapFAI Works</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 dark:text-white">How SnapFAI Works</h2>
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
                 Experience the simplicity of DeFi through natural language interaction
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
-                  <span className="text-2xl font-bold text-snapfai-black">1</span>
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
+                  <span className="text-xl md:text-2xl font-bold text-snapfai-black">1</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-2 dark:text-white">Ask SnapFAI</h3>
-                <p className="text-gray-600 dark:text-gray-300">Simply type what you want to do in natural language</p>
+                <h3 className="text-lg md:text-xl font-semibold mb-2 dark:text-white">Ask SnapFAI</h3>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-300">Simply type what you want to do in natural language</p>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
-                  <span className="text-2xl font-bold text-snapfai-black">2</span>
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
+                  <span className="text-xl md:text-2xl font-bold text-snapfai-black">2</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-2 dark:text-white">Get Smart Recommendations</h3>
-                <p className="text-gray-600 dark:text-gray-300">
+                <h3 className="text-lg md:text-xl font-semibold mb-2 dark:text-white">Get Smart Recommendations</h3>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-300">
                   SnapFAI analyzes multiple protocols to find the best options
                 </p>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
-                  <span className="text-2xl font-bold text-snapfai-black">3</span>
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-snapfai-amber/80 dark:bg-snapfai-amber flex items-center justify-center mb-4 shadow-md">
+                  <span className="text-xl md:text-2xl font-bold text-snapfai-black">3</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-2 dark:text-white">Execute Seamlessly</h3>
-                <p className="text-gray-600 dark:text-gray-300">Confirm and execute transactions with minimal effort</p>
+                <h3 className="text-lg md:text-xl font-semibold mb-2 dark:text-white">Execute Seamlessly</h3>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-300">Confirm and execute transactions with minimal effort</p>
               </div>
             </div>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="py-20">
+        <section className="py-16 md:py-20">
           <div className="container">
             <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-3xl md:text-4xl font-bold mb-6 dark:text-white">Ready to Experience DeFi Like Magic?</h2>
-              <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-4 md:mb-6 dark:text-white">Ready to Experience DeFi Like Magic?</h2>
+              <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-6 md:mb-8">
                 Join SnapFAI today and transform how you interact with decentralized finance.
               </p>
               <Link href="/snap">
@@ -194,26 +194,26 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-12 bg-snapfai-sand/30 dark:bg-gray-900 dark:border-gray-800">
+      <footer className="border-t py-8 md:py-12 bg-snapfai-sand/30 dark:bg-gray-900 dark:border-gray-800">
         <div className="container">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            <div className="sm:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-2 mb-4">
                 <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
-                <span className="text-xl font-bold dark:text-white">SnapFAI</span>
+                <span className="text-lg md:text-xl font-bold dark:text-white">SnapFAI</span>
               </div>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">AI-powered DeFi for the future of finance</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm md:text-base text-gray-600 dark:text-gray-300 mb-4">AI-powered DeFi for the future of finance</p>
+              <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
                 © {new Date().getFullYear()} SnapFAI. All rights reserved.
               </p>
             </div>
             <div>
-              <h3 className="font-semibold mb-4 dark:text-white">Product</h3>
+              <h3 className="font-semibold mb-3 md:mb-4 dark:text-white">Product</h3>
               <ul className="space-y-2">
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Features
                   </Link>
@@ -221,7 +221,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     How It Works
                   </Link>
@@ -229,7 +229,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Pricing
                   </Link>
@@ -237,12 +237,12 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold mb-4 dark:text-white">Resources</h3>
+              <h3 className="font-semibold mb-3 md:mb-4 dark:text-white">Resources</h3>
               <ul className="space-y-2">
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Documentation
                   </Link>
@@ -250,7 +250,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     API
                   </Link>
@@ -258,7 +258,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Blog
                   </Link>
@@ -266,12 +266,12 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold mb-4 dark:text-white">Company</h3>
+              <h3 className="font-semibold mb-3 md:mb-4 dark:text-white">Company</h3>
               <ul className="space-y-2">
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     About
                   </Link>
@@ -279,7 +279,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Contact
                   </Link>
@@ -287,7 +287,7 @@ export default function Home() {
                 <li>
                   <Link
                     href="#"
-                    className="text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
+                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
                   >
                     Privacy Policy
                   </Link>
@@ -310,11 +310,11 @@ function FeatureCard({
   return (
     <Card className="dark:bg-gray-800 dark:border-gray-700">
       <CardHeader className="pb-2">
-        <div className="mb-4">{icon}</div>
-        <CardTitle className="dark:text-white">{title}</CardTitle>
+        <div className="mb-3 md:mb-4">{icon}</div>
+        <CardTitle className="text-lg md:text-xl dark:text-white">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <CardDescription className="text-base dark:text-gray-300">{description}</CardDescription>
+        <CardDescription className="text-sm md:text-base dark:text-gray-300">{description}</CardDescription>
       </CardContent>
     </Card>
   )

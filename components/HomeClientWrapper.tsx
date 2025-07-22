@@ -41,10 +41,7 @@ export default function HomeClientWrapper({
   if (showPrompt) {
     return (
       <div className="container py-20">
-        <ConnectWalletPrompt 
-          message="You need to connect your wallet and sign a message to access the requested feature." 
-          redirectPath={redirectPath}
-        />
+        <ConnectWalletPrompt />
       </div>
     )
   }
