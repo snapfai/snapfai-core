@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link"
-import { ArrowRight, MessageSquare, Layers, Coins, Clock, BarChart3, Zap, Brain, Sparkles } from "lucide-react"
+import { ArrowRight, MessageSquare, Layers, Coins, Clock, BarChart3, Zap, Brain, Sparkles, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -32,6 +32,12 @@ export default function Home() {
                 <Link href="/snap" className="w-full sm:w-auto">
                   <Button size="lg" className="w-full sm:w-auto bg-snapfai-black hover:bg-snapfai-black/90 text-white dark:bg-snapfai-amber dark:hover:bg-snapfai-amber/90 dark:text-snapfai-black">
                     Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/portfolio" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto dark:border-gray-700 dark:text-gray-200">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    View Portfolio
                   </Button>
                 </Link>
                 <Link href="https://docs.snapfai.com" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">

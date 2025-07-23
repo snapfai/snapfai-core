@@ -60,6 +60,11 @@ const Header = () => {
                 <Link href="/snap" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Snap
                 </Link>
+                {isConnected && (
+                  <Link href="/portfolio" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                    Portfolio
+                  </Link>
+                )}
                 <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Docs
                 </Link>
@@ -84,6 +89,11 @@ const Header = () => {
           <Link href="/snap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Snap
           </Link>
+          {isConnected && (
+            <Link href="/portfolio" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
+              Portfolio
+            </Link>
+          )}
           <Link href="https://docs.snapfai.com/" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Docs
           </Link>

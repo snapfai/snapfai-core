@@ -209,6 +209,7 @@ Ready to get started? Just type what you'd like to do!`,
   const networkRef = useRef(caipNetwork);
   const balanceRef = useRef(balance);
   const isBalanceLoadingRef = useRef(isBalanceLoading);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Update refs when values change
   useEffect(() => {
@@ -369,7 +370,7 @@ Ready to get started? Just type what you'd like to do!`,
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   
-  const { register, handleSubmit, reset, formState: { isValid } } = useForm({
+  const { register, handleSubmit, reset, setValue, formState: { isValid } } = useForm({
     defaultValues: {
       message: ''
     }
