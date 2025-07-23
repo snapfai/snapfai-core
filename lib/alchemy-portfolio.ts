@@ -120,7 +120,7 @@ export const fetchTokenBalancesForChain = async (
         }
 
         // Convert balance to human readable format
-        const balanceWei = parseInt(tokenBalance.tokenBalance, 16)
+        const balanceWei = parseInt(tokenBalance.tokenBalance || '0', 16)
         const balance = balanceWei / Math.pow(10, metadata.decimals)
         
         // @ts-ignore - Alchemy SDK type issue
@@ -141,7 +141,7 @@ export const fetchTokenBalancesForChain = async (
         const holding: AlchemyTokenHolding = {
           token,
           balance: balance.toFixed(6),
-          balanceRaw: tokenBalance.tokenBalance,
+          balanceRaw: tokenBalance.tokenBalance || '0',
           valueUSD: 0, // Will be calculated with prices
           chain: chainInfo.name,
           chainId

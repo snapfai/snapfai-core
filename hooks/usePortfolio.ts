@@ -13,6 +13,8 @@ export interface TokenHolding {
   chainId: number
   change24h?: number
   price?: number
+  isHidden?: boolean // New field to mark hidden tokens
+  riskLevel?: 'low' | 'medium' | 'high' // Risk assessment
 }
 
 export interface PortfolioStats {
@@ -22,16 +24,69 @@ export interface PortfolioStats {
   changePercent: number
   totalAssets: number
   activeChains: number
+  hiddenAssets: number // Count of hidden tokens
+  hiddenValue: number // Total value of hidden tokens
 }
 
 interface PortfolioData {
   stats: PortfolioStats
   holdings: TokenHolding[]
+  hiddenHoldings: TokenHolding[] // Separate array for hidden tokens
   isLoading: boolean
   error: string | null
   refresh: () => Promise<void>
 }
 
+// Token filtering logic - determine if token should be hidden
+const shouldHideToken = (holding: TokenHolding): boolean => {
+  const { valueUSD, token, balance } = holding
+  
+  // Hide if value is too low (dust)
+  if (valueUSD < 0.10) return true
+  
+  // Hide if no price data available and very small balance
+  if (holding.price === 0 && parseFloat(balance) < 0.001) return true
+  
+  // Hide common spam/airdrop tokens (add more as needed)
+  const spamTokens = [
+    'SPAM', 'AIRDROP', 'FREE', 'TEST', 'SCAM', 'FAKE',
+    'PHISHING', 'VIRUS', 'MALWARE', 'HONEYPOT'
+  ]
+  
+  const isSpamToken = spamTokens.some(spam => 
+    token.symbol.toUpperCase().includes(spam) || 
+    token.name.toUpperCase().includes(spam)
+  )
+  
+  if (isSpamToken) return true
+  
+  // Hide tokens with suspicious characteristics
+  if (token.symbol.length > 20) return true // Very long symbols
+  if (token.symbol.includes('🚀') || token.symbol.includes('💎')) return true // Emoji tokens
+  if (/^\d+$/.test(token.symbol)) return true // Pure number symbols
+  
+  return false
+}
+
+// Assess risk level of a token
+const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
+  const { valueUSD, token, price } = holding
+  
+  // High risk indicators
+  if (price === 0) return 'high'
+  if (valueUSD < 1) return 'high'
+  if (token.symbol.length > 10) return 'high'
+  
+  // Medium risk indicators  
+  if (valueUSD < 10) return 'medium'
+  if (!token.logoURI) return 'medium'
+  
+  // Low risk for established tokens
+  const establishedTokens = ['ETH', 'WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'LINK', 'UNI', 'AAVE']
+  if (establishedTokens.includes(token.symbol.toUpperCase())) return 'low'
+  
+  return 'medium'
+}
 
 
 export function usePortfolio(): PortfolioData {
@@ -39,13 +94,16 @@ export function usePortfolio(): PortfolioData {
   const { caipNetwork } = useAppKitNetwork()
   
   const [holdings, setHoldings] = useState<TokenHolding[]>([])
+  const [hiddenHoldings, setHiddenHoldings] = useState<TokenHolding[]>([])
   const [stats, setStats] = useState<PortfolioStats>({
     totalValue: '$0.00',
     totalValueUSD: 0,
     change24h: 0,
     changePercent: 0,
     totalAssets: 0,
-    activeChains: 0
+    activeChains: 0,
+    hiddenAssets: 0,
+    hiddenValue: 0
   })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -53,25 +111,34 @@ export function usePortfolio(): PortfolioData {
   const convertAlchemyToTokenHolding = (alchemyHolding: AlchemyTokenHolding, priceData: { price: number, change24h: number }): TokenHolding => {
     const valueUSD = parseFloat(alchemyHolding.balance) * priceData.price
     
-    return {
+    const holding: TokenHolding = {
       ...alchemyHolding,
       value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : '$0.00',
       valueUSD,
       change24h: priceData.change24h,
       price: priceData.price
     }
+    
+    // Add risk assessment
+    holding.riskLevel = assessRiskLevel(holding)
+    holding.isHidden = shouldHideToken(holding)
+    
+    return holding
   }
 
   const loadPortfolioData = async () => {
     if (!isConnected || !address) {
       setHoldings([])
+      setHiddenHoldings([])
       setStats({
         totalValue: '$0.00',
         totalValueUSD: 0,
         change24h: 0,
         changePercent: 0,
         totalAssets: 0,
-        activeChains: 0
+        activeChains: 0,
+        hiddenAssets: 0,
+        hiddenValue: 0
       })
       setIsLoading(false)
       return
@@ -152,27 +219,34 @@ export function usePortfolio(): PortfolioData {
         ]
       }
 
-      setHoldings(allHoldings)
+      // Filter out hidden tokens
+      const filteredHoldings = allHoldings.filter(holding => !shouldHideToken(holding))
+      const filteredHiddenHoldings = allHoldings.filter(holding => shouldHideToken(holding))
+
+      setHoldings(filteredHoldings)
+      setHiddenHoldings(filteredHiddenHoldings)
 
       // Calculate portfolio stats
-      const totalValueUSD = allHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
-      const totalChange24h = allHoldings.reduce((sum, holding) => {
+      const totalValueUSD = filteredHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
+      const totalChange24h = filteredHoldings.reduce((sum, holding) => {
         return sum + (holding.valueUSD * (holding.change24h || 0) / 100)
       }, 0)
       const changePercent = totalValueUSD > 0 ? (totalChange24h / totalValueUSD) * 100 : 0
       
-      const uniqueChains = new Set(allHoldings.map(h => h.chainId))
+      const uniqueChains = new Set(filteredHoldings.map(h => h.chainId))
 
-      setStats({
-        totalValue: `$${totalValueUSD.toLocaleString()}`,
-        totalValueUSD,
-        change24h: totalChange24h,
-        changePercent,
-        totalAssets: allHoldings.length,
-        activeChains: uniqueChains.size
-      })
+              setStats({
+          totalValue: `$${totalValueUSD.toLocaleString()}`,
+          totalValueUSD,
+          change24h: totalChange24h,
+          changePercent,
+          totalAssets: allHoldings.length, // Total count of all tokens (visible + hidden)
+          activeChains: uniqueChains.size,
+          hiddenAssets: filteredHiddenHoldings.length,
+          hiddenValue: filteredHiddenHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
+        })
 
-      console.log(`Portfolio loaded: ${allHoldings.length} assets across ${uniqueChains.size} chains`)
+      console.log(`Portfolio loaded: ${filteredHoldings.length} assets across ${uniqueChains.size} chains`)
 
     } catch (error) {
       console.error('Error loading portfolio data:', error)
@@ -193,6 +267,7 @@ export function usePortfolio(): PortfolioData {
   return {
     stats,
     holdings,
+    hiddenHoldings,
     isLoading,
     error,
     refresh
