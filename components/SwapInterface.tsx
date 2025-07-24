@@ -12,6 +12,7 @@ import useSwap from '@/hooks/useSwap';
 import { parseTokenAmount } from '@/lib/swap-utils';
 import { getTokensForChain, getDefaultTokenPair, TokenConfig } from '@/lib/tokens';
 import { SUPPORTED_CHAINS, getChainById } from '@/lib/chains';
+import SwapSupportedTokensModal from './SwapSupportedTokensModal';
 
 // Network options
 const NETWORK_OPTIONS = Object.entries(SUPPORTED_CHAINS).map(([key, config]) => ({
@@ -35,6 +36,7 @@ export default function SwapInterface() {
   const [quote, setQuote] = useState<any>(null);
   const [refreshQuote, setRefreshQuote] = useState(0);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showTokensModal, setShowTokensModal] = useState(false);
   
   // Initialize tokens when chain changes
   useEffect(() => {
@@ -406,7 +408,21 @@ export default function SwapInterface() {
             )}
           </Button>
         )}
+        <div className="flex items-center gap-2 mb-2">
+          <Button variant="outline" size="sm" onClick={() => setShowTokensModal(true)}>
+            View Supported Tokens
+          </Button>
+        </div>
       </CardContent>
+      <SwapSupportedTokensModal
+        open={showTokensModal}
+        onClose={() => setShowTokensModal(false)}
+        chainId={selectedChainId}
+        onSelect={token => {
+          setSellToken(token);
+          setShowTokensModal(false);
+        }}
+      />
     </Card>
   );
 } 
