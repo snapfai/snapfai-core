@@ -40,7 +40,7 @@ export function PortfolioAnalysis({ holdings, minValue = 1 }: PortfolioAnalysisP
           <div>
             <span className="text-gray-600 dark:text-gray-400">Total Value:</span>
             <span className="ml-1 font-medium text-green-600 dark:text-green-400">
-              ${totalValue.toFixed(2)}
+              ${totalValue.toFixed(6)}
             </span>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function PortfolioAnalysis({ holdings, minValue = 1 }: PortfolioAnalysisP
             </div>
             <div className="text-right">
               <div className="font-bold text-green-600 dark:text-green-400">
-                ${holding.valueUSD.toFixed(2)}
+                ${holding.valueUSD.toFixed(6)}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {holding.balance} {holding.token.symbol}

@@ -37,6 +37,30 @@ interface PortfolioData {
   refresh: () => Promise<void>
 }
 
+// Formatting utility functions
+const formatCurrency = (value: number): string => {
+  if (value === 0) return '$0.000000'
+  
+  // For values >= $1, show 2 decimal places like normal currency
+  if (value >= 1) {
+    return `$${value.toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`
+  }
+  
+  // For values < $1, show up to 6 decimal places
+  return `$${value.toFixed(6)}`
+}
+
+const formatPercentage = (value: number): string => {
+  return value.toFixed(2)
+}
+
+const formatChange24h = (value: number): string => {
+  return value.toFixed(2)
+}
+
 // Token filtering logic - determine if token should be hidden
 const shouldHideToken = (holding: TokenHolding): boolean => {
   const { valueUSD, token, balance } = holding
@@ -113,7 +137,7 @@ export function usePortfolio(): PortfolioData {
     
     const holding: TokenHolding = {
       ...alchemyHolding,
-      value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : '$0.00',
+      value: formatCurrency(valueUSD),
       valueUSD,
       change24h: priceData.change24h,
       price: priceData.price
@@ -235,16 +259,16 @@ export function usePortfolio(): PortfolioData {
       
       const uniqueChains = new Set(filteredHoldings.map(h => h.chainId))
 
-              setStats({
-          totalValue: `$${totalValueUSD.toLocaleString()}`,
-          totalValueUSD,
-          change24h: totalChange24h,
-          changePercent,
-          totalAssets: allHoldings.length, // Total count of all tokens (visible + hidden)
-          activeChains: uniqueChains.size,
-          hiddenAssets: filteredHiddenHoldings.length,
-          hiddenValue: filteredHiddenHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
-        })
+      setStats({
+        totalValue: formatCurrency(totalValueUSD),
+        totalValueUSD,
+        change24h: parseFloat(formatChange24h(totalChange24h)),
+        changePercent: parseFloat(formatPercentage(changePercent)),
+        totalAssets: allHoldings.length, // Total count of all tokens (visible + hidden)
+        activeChains: uniqueChains.size,
+        hiddenAssets: filteredHiddenHoldings.length,
+        hiddenValue: filteredHiddenHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
+      })
 
       console.log(`Portfolio loaded: ${filteredHoldings.length} assets across ${uniqueChains.size} chains`)
 

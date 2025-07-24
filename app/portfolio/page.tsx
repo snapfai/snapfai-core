@@ -115,8 +115,8 @@ export default function PortfolioPage() {
                     <TrendingDown className="h-4 w-4 text-red-500" />
                   )}
                   <span className={`text-sm ${portfolioStats.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {portfolioStats.changePercent >= 0 ? '+' : ''}{portfolioStats.changePercent}% 
-                    (${portfolioStats.change24h >= 0 ? '+' : ''}${portfolioStats.change24h})
+                    {portfolioStats.changePercent >= 0 ? '+' : ''}{portfolioStats.changePercent.toFixed(2)}% 
+                    (${portfolioStats.change24h >= 0 ? '+' : ''}${portfolioStats.change24h.toFixed(2)})
                   </span>
                   <span className="text-xs text-muted-foreground">24h</span>
                 </div>
@@ -244,7 +244,7 @@ export default function PortfolioPage() {
                           <p className="font-medium">{holding.value}</p>
                           {holding.change24h !== undefined && (
                             <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {holding.change24h >= 0 ? '+' : ''}{holding.change24h}%
+                              {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
                             </p>
                           )}
                         </div>
@@ -327,7 +327,7 @@ export default function PortfolioPage() {
                           <div className="text-right">
                             <p className="text-sm font-medium">{holding.value}</p>
                             <p className="text-xs text-muted-foreground">
-                              {holding.price === 0 ? 'No price' : `$${holding.price}`}
+                              {holding.price === 0 ? 'No price' : `$${holding.price?.toFixed(6) || '0.000000'}`}
                             </p>
                           </div>
                         </div>
