@@ -20,6 +20,7 @@ import { parseEther } from 'viem';
 import type { Hex } from 'viem';
 import { getChainId, getChainByName, extractChainIdFromCAIP, getNativeTokenSymbol } from '@/lib/chains';
 import { resolveToken, getTokensForChain } from '@/lib/tokens';
+import { resolveTokenStrict } from '@/lib/token-resolver';
 import SwapSupportedTokensModal from './SwapSupportedTokensModal';
 
 
@@ -154,6 +155,17 @@ Ready to get started? Just type what you'd like to do!`,
     key: string;
     data: any;
     timestamp: number;
+  } | null>(null);
+  
+  // Add state for custom token confirmation
+  const [showCustomTokenConfirmation, setShowCustomTokenConfirmation] = useState(false);
+  const [customTokenInfo, setCustomTokenInfo] = useState<{
+    tokenInfo: any;
+    tokenIn: string;
+    tokenOut: string;
+    amount: number;
+    chain: string;
+    messageId: string;
   } | null>(null);
   
   // Get wallet information
@@ -485,22 +497,35 @@ Ready to get started? Just type what you'd like to do!`,
         });
         
         if (receipt) {
+          const normalizeChain = (chain: string) => {
+            if (!chain) return '';
+            const c = chain.toLowerCase();
+            if (c.includes('arbitrum')) return 'arbitrum';
+            if (c.includes('ethereum')) return 'ethereum';
+            if (c.includes('sepolia')) return 'sepolia';
+            if (c.includes('base')) return 'base';
+            if (c.includes('polygon')) return 'polygon';
+            if (c.includes('avalanche')) return 'avalanche';
+            return '';
+          };
+          const normalizedChain = normalizeChain(chain);
+
           const explorerUrl = 
-            chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
-            chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${txHash}` :
-            chain === 'arbitrum' ? `https://arbiscan.io/tx/${txHash}` :
-            chain === 'base' ? `https://basescan.org/tx/${txHash}` :
-            chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
-            chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+            normalizedChain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
+            normalizedChain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${txHash}` :
+            normalizedChain === 'arbitrum' ? `https://arbiscan.io/tx/${txHash}` :
+            normalizedChain === 'base' ? `https://basescan.org/tx/${txHash}` :
+            normalizedChain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
+            normalizedChain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
             `#`;
-          
+
           const explorerName = 
-            chain === 'ethereum' ? 'Etherscan' : 
-            chain === 'sepolia' ? 'Sepolia Etherscan' :
-            chain === 'arbitrum' ? 'Arbiscan' :
-            chain === 'base' ? 'Basescan' :
-            chain === 'polygon' ? 'Polygonscan' :
-            chain === 'avalanche' ? 'Snowtrace' :
+            normalizedChain === 'ethereum' ? 'Etherscan' : 
+            normalizedChain === 'sepolia' ? 'Sepolia Etherscan' :
+            normalizedChain === 'arbitrum' ? 'Arbiscan' :
+            normalizedChain === 'base' ? 'Basescan' :
+            normalizedChain === 'polygon' ? 'Polygonscan' :
+            normalizedChain === 'avalanche' ? 'Snowtrace' :
             'block explorer';
           
           if (receipt.status === '0x1') {
@@ -619,7 +644,7 @@ Please check manually on [${
     setTimeout(checkStatus, 5000);
   };
 
-  // Update handleSwapRequest to get a quote first and cache it
+  // Update handleSwapRequest to use the new token resolution with confirmation flow
   const handleSwapRequest = async (tokenIn: string, tokenOut: string, amount: number, chain: string) => {
     // Add loading message directly from this function
     const currentChain = getCurrentChainName();
@@ -628,9 +653,8 @@ Please check manually on [${
       ? `on your current network (${chain})` 
       : `on ${chain}`;
     
-    const loadingMessage = addMessage('assistant', `Getting the latest price quote for ${amount} ${tokenIn} to ${tokenOut} ${chainMessage}...`, true);
+    const loadingMessage = addMessage('assistant', `Checking tokens and getting price quote for ${amount} ${tokenIn} to ${tokenOut} ${chainMessage}...`, true);
     
-    // Get a real-time price quote first
     try {
       // Get chain ID from chain name
       const chainId = getChainId(chain);
@@ -639,22 +663,37 @@ Please check manually on [${
         return;
       }
       
-      // Find token addresses using the new token resolution system
-      const sellTokenInfo = resolveToken(tokenIn, chainId);
-      const buyTokenInfo = resolveToken(tokenOut, chainId);
+      // Step 1 & 2: Resolve tokenIn with confirmation flow
+      const tokenInResult = await resolveTokenWithConfirmation(
+        tokenIn, chainId, 'tokenIn', amount, tokenOut, chain, loadingMessage.id
+      );
       
-      // Log the tokens being used
+      if (!tokenInResult.success) {
+        return; // Error message already shown
+      }
+      
+      if (tokenInResult.requiresConfirmation) {
+        return; // Waiting for user confirmation
+      }
+      
+      // Step 1 & 2: Resolve tokenOut with confirmation flow
+      const tokenOutResult = await resolveTokenWithConfirmation(
+        tokenOut, chainId, 'tokenOut', amount, tokenIn, chain, loadingMessage.id
+      );
+      
+      if (!tokenOutResult.success) {
+        return; // Error message already shown
+      }
+      
+      if (tokenOutResult.requiresConfirmation) {
+        return; // Waiting for user confirmation
+      }
 
+      const sellTokenInfo = tokenInResult.tokenInfo;
+      const buyTokenInfo = tokenOutResult.tokenInfo;
       
-      if (!sellTokenInfo) {
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenIn}" on ${chain}. Type a token symbol (e.g. USDC, WETH) or search for a token.`, false);
-        return;
-      }
-      
-      if (!buyTokenInfo) {
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenOut}" on ${chain}. Type a token symbol (e.g. USDC, WETH) or search for a token.`, false);
-        return;
-      }
+      // Continue with existing swap quote logic...
+      updateMessage(loadingMessage.id, `✅ Tokens verified! Getting the latest price quote...`, true);
       
       // Import the utility functions
       const { formatTokenAmount, getSwapQuote } = await import('@/lib/swap-utils');
@@ -725,15 +764,22 @@ Please check manually on [${
         }
       }
       
+      // Add custom token warning if either token is custom
+      const isCustomTokenIn = !resolveToken(tokenIn, chainId);
+      const isCustomTokenOut = !resolveToken(tokenOut, chainId);
+      const customTokenWarning = (isCustomTokenIn || isCustomTokenOut)
+        ? `\n⚠️ **Note:** This swap includes custom tokens not in our verified list.`
+        : '';
+      
       // Update the message with the price quote and ask for confirmation
       const confirmationMessage = updateMessage(
         loadingMessage.id,
         `## 🔄 **Swap Confirmation**
 
 **You're about to swap:**
-- **From:** ${amount} ${tokenIn}
-- **To:** ~${formattedBuyAmount} ${tokenOut}
-- **Network:** ${chain}${priceText}${sourceText}
+- **From:** ${amount} ${sellTokenInfo.symbol} ${sellTokenInfo.name ? `(${sellTokenInfo.name})` : ''}
+- **To:** ~${formattedBuyAmount} ${buyTokenInfo.symbol} ${buyTokenInfo.name ? `(${buyTokenInfo.name})` : ''}
+- **Network:** ${chain}${priceText}${sourceText}${customTokenWarning}
 
 **Ready to execute this swap?**
 
@@ -758,10 +804,10 @@ You can click the buttons below or simply type "yes" or "no":`,
         chain
       });
     } catch (error) {
-      console.error('Error getting price quote:', error);
+      console.error('Error in handleSwapRequest:', error);
       updateMessage(
         loadingMessage.id,
-        `Sorry, I encountered an error while getting the price quote: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+        `Sorry, I encountered an error while processing your swap request: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         false
       );
     }
@@ -797,6 +843,19 @@ You can use this information to manually submit the transaction through your wal
     // Check if user is confirming a swap - improved pattern matching
     const yesPatterns = /^(yes|yeah|yep|sure|ok|okay|proceed|go ahead|confirm|execute|do it|y)$/i;
     const noPatterns = /^(no|nope|nah|cancel|don't|dont|stop|abort|skip|n)$/i;
+    
+    // Handle custom token confirmation
+    if (showCustomTokenConfirmation && customTokenInfo) {
+      if (yesPatterns.test(userMessage)) {
+        handleCustomTokenConfirmation(true);
+        reset();
+        return;
+      } else if (noPatterns.test(userMessage)) {
+        handleCustomTokenConfirmation(false);
+        reset();
+        return;
+      }
+    }
     
     if (pendingSwapRequest && yesPatterns.test(userMessage)) {
       // User confirmed the swap request
@@ -1070,6 +1129,162 @@ You can use this information to manually submit the transaction through your wal
   // Helper to capitalize first letter
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+  // Add new token resolution function with the 4-step flow
+  const resolveTokenWithConfirmation = async (
+    identifier: string, 
+    chainId: number, 
+    tokenName: string, // "tokenIn" or "tokenOut" for error messages
+    amount: number,
+    otherToken: string,
+    chain: string,
+    messageId: string
+  ): Promise<{ success: boolean; tokenInfo?: any; requiresConfirmation?: boolean }> => {
+    // Step 1: Check if token is in our supported list (by symbol)
+    const supportedToken = resolveToken(identifier, chainId);
+    if (supportedToken) {
+      return { success: true, tokenInfo: supportedToken };
+    }
+
+    // Step 2: Check if it's a token address (ERC-20 format)
+    const isAddress = /^0x[a-fA-F0-9]{40}$/.test(identifier);
+    if (!isAddress) {
+      // Not a supported symbol and not an address
+      updateMessage(
+        messageId,
+        `Sorry, I don't recognize the token "${identifier}" on ${chain}. 
+
+**Available options:**
+1. Use a supported token symbol (e.g., USDC, WETH, DAI)
+2. Use a valid contract address (0x...)
+3. View supported tokens using the eye icon in the header
+
+Type a token symbol or paste a contract address to continue.`,
+        false
+      );
+      return { success: false };
+    }
+
+    // Step 2.1: Check if the address is already in our supported list (user typed contract address of supported token)
+    const tokensForChain = getTokensForChain(chainId);
+    const supportedTokenByAddress = tokensForChain.find(token => 
+      token.address.toLowerCase() === identifier.toLowerCase()
+    );
+    
+    if (supportedTokenByAddress) {
+      // This is a supported token, user just typed the contract address instead of symbol
+      return { success: true, tokenInfo: supportedTokenByAddress };
+    }
+
+    // Step 3: Address is not in our list, fetch token info and show warning
+    try {
+      updateMessage(
+        messageId,
+        `⚠️ **Custom Token Detected**
+
+The address "${identifier}" is not in our official supported list.
+
+🔍 **Fetching token information...**
+
+Please wait while I verify this token's details.`,
+        true
+      );
+
+      const customTokenInfo = await resolveTokenStrict(identifier, chainId);
+      
+      if (!customTokenInfo) {
+        updateMessage(
+          messageId,
+          `❌ **Unable to fetch token information**
+
+The address "${identifier}" doesn't appear to be a valid ERC-20 token on ${chain}.
+
+**Please check:**
+- The address is correct
+- The token exists on ${chain} network
+- The token follows ERC-20 standard
+
+Try using a supported token symbol instead, or verify the contract address.`,
+          false
+        );
+        return { success: false };
+      }
+
+      // Step 4: Show token info and ask for confirmation
+      const warningMessage = `⚠️ **Custom Token Warning**
+
+**Token Details:**
+- **Name:** ${customTokenInfo.name}
+- **Symbol:** ${customTokenInfo.symbol}
+- **Decimals:** ${customTokenInfo.decimals}
+- **Address:** \`${customTokenInfo.address}\`
+
+**⚠️ IMPORTANT SAFETY WARNING:**
+- This token is **NOT** in our verified token list
+- Always verify the contract address before trading
+- Be aware of potential risks with unverified tokens
+- Check the token on a block explorer first
+
+**Do you want to proceed with this custom token?**
+
+You can continue or use a verified token from our supported list instead.`;
+
+      updateMessage(messageId, warningMessage, false);
+
+      // Store the custom token info for confirmation
+      setCustomTokenInfo({
+        tokenInfo: customTokenInfo,
+        tokenIn: tokenName === 'tokenIn' ? identifier : otherToken,
+        tokenOut: tokenName === 'tokenOut' ? identifier : otherToken,
+        amount,
+        chain,
+        messageId
+      });
+      setShowCustomTokenConfirmation(true);
+
+      return { success: true, tokenInfo: customTokenInfo, requiresConfirmation: true };
+
+    } catch (error) {
+      console.error('Error fetching custom token info:', error);
+      updateMessage(
+        messageId,
+        `❌ **Token Verification Failed**
+
+Unable to fetch information for "${identifier}".
+
+**This could mean:**
+- Invalid contract address
+- Network connectivity issues
+- Token doesn't exist on ${chain}
+
+Please try again with a supported token symbol or verify the contract address.`,
+        false
+      );
+      return { success: false };
+    }
+  };
+
+  // Handle custom token confirmation
+  const handleCustomTokenConfirmation = (confirmed: boolean) => {
+    if (!customTokenInfo) return;
+
+    setShowCustomTokenConfirmation(false);
+
+    if (confirmed) {
+      // User confirmed, proceed with the swap using custom token
+      addMessage('user', 'Yes, proceed with custom token');
+      
+      // Continue with the swap flow
+      const { tokenIn, tokenOut, amount, chain } = customTokenInfo;
+      executeSwap(tokenIn, tokenOut, amount, chain);
+    } else {
+      // User declined
+      addMessage('user', 'No, use verified tokens only');
+      addMessage('assistant', 'Good choice! Using verified tokens is safer. Please try your swap with tokens from our supported list. You can view supported tokens using the eye icon in the header, or try common ones like USDC, WETH, or DAI.');
+    }
+
+    setCustomTokenInfo(null);
+  };
+
   // Generate the welcome message with current wallet info
   const generateWelcomeMessage = () => {
     const currentChain = capitalize(getCurrentChainName());
@@ -1263,6 +1478,18 @@ Type a token symbol (e.g. USDC, WETH) or search for a token.
         
         // Transaction was sent successfully
         if (tx) {
+          const normalizeChain = (chain: string) => {
+            if (!chain) return '';
+            const c = chain.toLowerCase();
+            if (c.includes('arbitrum')) return 'arbitrum';
+            if (c.includes('ethereum')) return 'ethereum';
+            if (c.includes('sepolia')) return 'sepolia';
+            if (c.includes('base')) return 'base';
+            if (c.includes('polygon')) return 'polygon';
+            if (c.includes('avalanche')) return 'avalanche';
+            return '';
+          };
+          const normalizedChain = normalizeChain(chain);
           const statusMessage = addMessage(
             'assistant', 
             `✅ Transaction submitted! 
@@ -1272,20 +1499,20 @@ Transaction hash: \`${tx}\`
 ⏳ **Status**: Pending confirmation...
 
 You can check the status on ${
-  chain === 'ethereum' ? '[Etherscan]' : 
-  chain === 'sepolia' ? '[Sepolia Etherscan]' :
-  chain === 'arbitrum' ? '[Arbiscan]' :
-  chain === 'base' ? '[Basescan]' :
-  chain === 'polygon' ? '[Polygonscan]' :
-  chain === 'avalanche' ? '[Snowtrace]' :
+  normalizedChain === 'ethereum' ? '[Etherscan]' : 
+  normalizedChain === 'sepolia' ? '[Sepolia Etherscan]' :
+  normalizedChain === 'arbitrum' ? '[Arbiscan]' :
+  normalizedChain === 'base' ? '[Basescan]' :
+  normalizedChain === 'polygon' ? '[Polygonscan]' :
+  normalizedChain === 'avalanche' ? '[Snowtrace]' :
   '[the block explorer]'
 }(${
-  chain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
-  chain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${tx}` :
-  chain === 'arbitrum' ? `https://arbiscan.io/tx/${tx}` :
-  chain === 'base' ? `https://basescan.org/tx/${tx}` :
-  chain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
-  chain === 'avalanche' ? `https://snowtrace.io/tx/${tx}` :
+  normalizedChain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
+  normalizedChain === 'sepolia' ? `https://sepolia.etherscan.io/tx/${tx}` :
+  normalizedChain === 'arbitrum' ? `https://arbiscan.io/tx/${tx}` :
+  normalizedChain === 'base' ? `https://basescan.org/tx/${tx}` :
+  normalizedChain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
+  normalizedChain === 'avalanche' ? `https://snowtrace.io/tx/${tx}` :
   `#`
 })
 
@@ -1564,7 +1791,7 @@ If the issue persists:
         try {
           updateMessage(
             loadingMessage.id,
-            `This swap requires token approval. Please approve the 0x contract to spend your ${tokenIn}...`,
+            `This swap requires token approval. Please approve the 0x contract to spend your ${sellTokenInfo.symbol}...`,
             true
           );
           
@@ -1706,8 +1933,8 @@ If the issue persists:
         `I've prepared your swap transaction! ${hasTokenApproval ? 'The token approval has been processed.' : ''} Please check your wallet to sign the transaction.
         
 **Swap Details:**
-- Swapping: ${amount} ${tokenIn}
-- Receiving: ~${formattedBuyAmount} ${tokenOut}
+- Swapping: ${amount} ${sellTokenInfo.symbol}
+- Receiving: ~${formattedBuyAmount} ${buyTokenInfo.symbol}
 - Network: ${chain}
 - Slippage: 1%
 ${hasTokenApproval ? '- Token Approval: ✅ Confirmed' : ''}
@@ -1754,7 +1981,7 @@ Please approve the transaction in your wallet to complete the swap.`,
       }
        
       // Send the transaction using the helper function
-      await sendSwapTransaction(normalizedResult, tokenIn, tokenOut, amount, chain, formattedBuyAmount);
+      await sendSwapTransaction(normalizedResult, sellTokenInfo.symbol, buyTokenInfo.symbol, amount, chain, formattedBuyAmount);
     } catch (error) {
       console.error('Error executing swap:', error);
       addMessage('assistant', 'Sorry, I encountered an error while preparing your swap. Please try again with a different amount or tokens.');
@@ -2203,6 +2430,24 @@ Just let me know what you'd prefer!`);
                             className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
                           >
                             ❌ No, Cancel
+                          </Button>
+                        </div>
+                      )}
+                      {/* Show custom token confirmation buttons */}
+                      {showCustomTokenConfirmation && customTokenInfo && customTokenInfo.messageId === message.id && (
+                        <div className="flex flex-col gap-3 mt-4 mb-2">
+                          <Button 
+                            onClick={() => handleCustomTokenConfirmation(true)}
+                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                          >
+                            ⚠️ Yes, Use Custom Token
+                          </Button>
+                          <Button 
+                            onClick={() => handleCustomTokenConfirmation(false)}
+                            variant="outline"
+                            className="w-full border-gray-300 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                          >
+                            🛡️ No, Use Verified Tokens
                           </Button>
                         </div>
                       )}
