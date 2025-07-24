@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { getTokensForChain, TokenConfig } from '@/lib/tokens';
+import { getChainById } from '@/lib/chains';
 
 interface SwapSupportedTokensModalProps {
   open: boolean;
@@ -41,9 +42,9 @@ export default function SwapSupportedTokensModal({ open, onClose, chainId, onSel
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg w-full">
+      <DialogContent className="max-w-lg w-full max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Supported Tokens</DialogTitle>
+          <DialogTitle>Supported Tokens on {getChainById(chainId)?.name || chainId}</DialogTitle>
         </DialogHeader>
         <div className="mb-2">
           <Input

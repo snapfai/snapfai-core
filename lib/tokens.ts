@@ -2073,7 +2073,7 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       symbol: "UNI",
       decimals: 18,
       name: "Uniswap",
-      logoURI: "ipfs://QmXttGpZrECX5qCyXbBQiqgQNytVGeZW5Anewvh2jc4psg",
+      logoURI: "/uniswap-logo-freelogovectors.net_.png",
     },
     {
       address: "0x70D2b7C19352bB76e4409858FF5746e500f2B67c",
@@ -9300,7 +9300,7 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       symbol: "UNI",
       decimals: 18,
       name: "Uniswap",
-      logoURI: "ipfs://QmXttGpZrECX5qCyXbBQiqgQNytVGeZW5Anewvh2jc4psg",
+      logoURI: "/uniswap-logo-freelogovectors.net_.png",
     },
     {
       address: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
@@ -10465,7 +10465,7 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       symbol: "UNI",
       decimals: 18,
       name: "Uniswap",
-      logoURI: "ipfs://QmXttGpZrECX5qCyXbBQiqgQNytVGeZW5Anewvh2jc4psg",
+      logoURI: "/uniswap-logo-freelogovectors.net_.png",
     },
     {
       address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -11245,7 +11245,7 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       symbol: "UNI",
       decimals: 18,
       name: "Uniswap",
-      logoURI: "ipfs://QmXttGpZrECX5qCyXbBQiqgQNytVGeZW5Anewvh2jc4psg",
+      logoURI: "/uniswap-logo-freelogovectors.net_.png",
     },
     {
       address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
@@ -12724,7 +12724,7 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       symbol: "UNI",
       decimals: 18,
       name: "Uniswap",
-      logoURI: "ipfs://QmXttGpZrECX5qCyXbBQiqgQNytVGeZW5Anewvh2jc4psg",
+      logoURI: "/uniswap-logo-freelogovectors.net_.png",
     },
     {
       address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",

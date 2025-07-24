@@ -8,7 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Eye } from 'lucide-react';
 import SwapConfirmation from './SwapConfirmation';
 import { v4 as uuid } from 'uuid';
 import ReactMarkdown from 'react-markdown';
@@ -1066,9 +1066,12 @@ You can use this information to manually submit the transaction through your wal
     setPendingSwapRequest(null);
   };
 
+  // Helper to capitalize first letter
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
   // Generate the welcome message with current wallet info
   const generateWelcomeMessage = () => {
-    const currentChain = getCurrentChainName();
+    const currentChain = capitalize(getCurrentChainName());
     return `# Welcome to SnapFAI! 🤖
 
 I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get market data, and answer questions about DeFi protocols.
@@ -2115,6 +2118,28 @@ Just let me know what you'd prefer!`);
                 <span className="text-sm font-medium">Switching Network...</span>
               </div>
             )}
+            {/* View Supported Tokens button - moved here */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="ml-2"
+              title="View Supported Tokens"
+              onClick={() => setShowTokensModal(true)}
+            >
+              <Eye className="h-5 w-5" />
+            </Button>
+          </div>
+          {/* Mobile: show as icon in header */}
+          <div className="sm:hidden flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="ml-2"
+              title="View Supported Tokens"
+              onClick={() => setShowTokensModal(true)}
+            >
+              <Eye className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -2318,11 +2343,6 @@ Just let me know what you'd prefer!`);
               className="flex-1 sm:flex-none text-xs px-3 py-2 h-8 md:h-8 md:px-4 md:text-sm rounded-lg"
             >
               🔄 Swap
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <Button variant="outline" size="sm" type="button" onClick={() => setShowTokensModal(true)}>
-              View Supported Tokens
             </Button>
           </div>
         </form>
