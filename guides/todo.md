@@ -45,6 +45,14 @@
   - [ ] Recent swap pairs quick access
   - [ ] Favorite token pairs
 
+- [x] ✅ **Supported Tokens Modal Improvements**
+  - 'See all' now shows all supported tokens for the current chain
+  - Resets to top 10 on close
+  - Moved 'View Supported Tokens' button to chat header for better UX
+  - Popup height is now constrained for search results
+  - Modal title now shows 'Supported Tokens on <Chain>'
+  - UNI token logo now uses local asset from /public
+
 ### **2. Chat Interface Improvements**
 
 - [x] ✅ **Message Enhancements** - Completed
@@ -79,6 +87,9 @@
   - [ ] Message editing capability
   - [ ] Message deletion/retry option
   - [ ] Share swap details feature
+
+- [x] ✅ **Welcome Message Polish**
+  - Chain name in 'Currently Connected' is now capitalized
 
 ### **3. Transaction Management**
 

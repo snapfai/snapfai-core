@@ -8,7 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Eye } from 'lucide-react';
 import SwapConfirmation from './SwapConfirmation';
 import { v4 as uuid } from 'uuid';
 import ReactMarkdown from 'react-markdown';
@@ -20,6 +20,8 @@ import { parseEther } from 'viem';
 import type { Hex } from 'viem';
 import { getChainId, getChainByName, extractChainIdFromCAIP, getNativeTokenSymbol } from '@/lib/chains';
 import { resolveToken, getTokensForChain } from '@/lib/tokens';
+import SwapSupportedTokensModal from './SwapSupportedTokensModal';
+
 
 // Add rehype-raw to support HTML in markdown for links
 import rehypeRaw from 'rehype-raw';
@@ -59,37 +61,7 @@ interface SwapDetails {
   chain: string;
 }
 
-// Common ERC20 tokens for swap functionality
-const TOKENS = [
-  {
-    address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // ETH
-    symbol: 'ETH',
-    decimals: 18,
-    name: 'Ethereum',
-    logoURI: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
-  },
-  {
-    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC
-    symbol: 'USDC',
-    decimals: 6,
-    name: 'USD Coin',
-    logoURI: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png'
-  },
-  {
-    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
-    symbol: 'USDT',
-    decimals: 6,
-    name: 'Tether',
-    logoURI: 'https://assets.coingecko.com/coins/images/325/small/Tether-logo.png'
-  },
-  {
-    address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI
-    symbol: 'DAI',
-    decimals: 18,
-    name: 'Dai Stablecoin',
-    logoURI: 'https://assets.coingecko.com/coins/images/9956/small/4943.png'
-  }
-];
+
 
 // Swap Confirmation Buttons Component
 const SwapConfirmationButtons = ({ 
@@ -675,14 +647,12 @@ Please check manually on [${
 
       
       if (!sellTokenInfo) {
-        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenIn}" on ${chain}. Available tokens: ${availableTokens}`, false);
+        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenIn}" on ${chain}. Type a token symbol (e.g. USDC, WETH) or search for a token.`, false);
         return;
       }
       
       if (!buyTokenInfo) {
-        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
-        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenOut}" on ${chain}. Available tokens: ${availableTokens}`, false);
+        updateMessage(loadingMessage.id, `Sorry, I don't recognize the token "${tokenOut}" on ${chain}. Type a token symbol (e.g. USDC, WETH) or search for a token.`, false);
         return;
       }
       
@@ -1097,15 +1067,12 @@ You can use this information to manually submit the transaction through your wal
     setPendingSwapRequest(null);
   };
 
+  // Helper to capitalize first letter
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
   // Generate the welcome message with current wallet info
   const generateWelcomeMessage = () => {
-    const currentChain = getCurrentChainName();
-    
-    // Get tokens for the current chain
-    const currentChainId = caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1;
-    const currentTokens = getTokensForChain(currentChainId || 1);
-    const tokenSymbols = currentTokens.map(token => token.symbol).join(', ');
-    
+    const currentChain = capitalize(getCurrentChainName());
     return `# Welcome to SnapFAI! 🤖
 
 I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get market data, and answer questions about DeFi protocols.
@@ -1124,8 +1091,7 @@ I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get mark
 
 ## Currently Connected: **${currentChain}**
 
-**Available Tokens on ${currentChain}:**
-${tokenSymbols}
+Type a token symbol (e.g. USDC, WETH) or search for a token.
 
 ## Quick Start
 - **Swap tokens**: "Swap 100 USDC to ETH"
@@ -1428,8 +1394,7 @@ If the issue persists:
       const buyTokenInfo = resolveToken(tokenOut, chainId);
       
       if (!sellTokenInfo || !buyTokenInfo) {
-        const availableTokens = getTokensForChain(chainId).map(t => t.symbol).join(', ');
-        updateMessage(loadingMessage.id, `Sorry, I couldn't recognize one of the tokens on ${chain}. Available tokens: ${availableTokens}`, false);
+        updateMessage(loadingMessage.id, `Sorry, I couldn't recognize one of the tokens on ${chain}. Type a token symbol (e.g. USDC, WETH) or search for a token.`, false);
         return;
       }
       
@@ -2125,6 +2090,20 @@ Or tell me what you'd like to do differently!`;
 Just let me know what you'd prefer!`);
   };
 
+  const [showTokensModal, setShowTokensModal] = useState(false);
+  const [tokenToInsert, setTokenToInsert] = useState<string | null>(null);
+
+  // Insert token symbol into chat input when selected
+  useEffect(() => {
+    if (tokenToInsert && inputRef.current) {
+      inputRef.current.value = (inputRef.current.value + ' ' + tokenToInsert).trim();
+      setTokenToInsert(null);
+      inputRef.current.focus();
+    }
+  }, [tokenToInsert]);
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <Card className="w-full h-[calc(100vh-120px)] sm:h-[calc(100vh-180px)] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6">
@@ -2140,6 +2119,28 @@ Just let me know what you'd prefer!`);
                 <span className="text-sm font-medium">Switching Network...</span>
               </div>
             )}
+            {/* View Supported Tokens button - moved here */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="ml-2"
+              title="View Supported Tokens"
+              onClick={() => setShowTokensModal(true)}
+            >
+              <Eye className="h-5 w-5" />
+            </Button>
+          </div>
+          {/* Mobile: show as icon in header */}
+          <div className="sm:hidden flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="ml-2"
+              title="View Supported Tokens"
+              onClick={() => setShowTokensModal(true)}
+            >
+              <Eye className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -2357,6 +2358,15 @@ Just let me know what you'd prefer!`);
           onClose={() => setShowSwapConfirmation(false)} 
         />
       )}
+      <SwapSupportedTokensModal
+        open={showTokensModal}
+        onClose={() => setShowTokensModal(false)}
+        chainId={(caipNetwork?.id ? extractChainIdFromCAIP(caipNetwork.id) : 1) ?? 1}
+        onSelect={token => {
+          setTokenToInsert(token.symbol);
+          setShowTokensModal(false);
+        }}
+      />
     </Card>
   );
 };
