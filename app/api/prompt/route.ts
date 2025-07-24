@@ -273,7 +273,7 @@ const isPriceQuery = (text: string): { isPriceQuery: boolean; token: string } =>
 };
 
 // Simple regex-based parser as fallback when OpenAI quota is exceeded
-function fallbackParser(text: string) {
+function fallbackParser(text: string, currentChain: string = 'ethereum') {
   // Expanded regex patterns to handle more swap command variations
   // Action keywords
   const actionRegex = /(swap|trade|convert|exchange)/i;
@@ -337,8 +337,8 @@ function fallbackParser(text: string) {
     tokenOut = addresses[1];
   }
   
-  // Chain (default to Ethereum)
-  const chain = chainMatch ? chainMatch[1] : 'Ethereum';
+  // Chain (default to current connected chain)
+const chain = chainMatch ? chainMatch[1] : (currentChain || 'ethereum');
   
   // Protocol (always null - system will determine the best protocol)
   const protocol = null;
@@ -366,7 +366,8 @@ export async function POST(request: NextRequest) {
       userId, 
       useLiveSearch, 
       searchSources,
-      walletInfo // New parameter to receive wallet information
+      walletInfo, // New parameter to receive wallet information
+      currentChain // Current connected chain context
     } = await request.json();
     
     text = promptText; // Store text for potential fallback use
@@ -466,25 +467,26 @@ export async function POST(request: NextRequest) {
       walletContext = `
 USER WALLET INFORMATION:
 - Wallet Address: ${walletInfo.address}
-- Connected Network: ${walletInfo.network || 'Not specified'}
+- Connected Network: ${walletInfo.network || currentChain || 'Not specified'}
+- Current Chain: ${currentChain || 'ethereum'} (THIS IS THE DEFAULT FOR ALL OPERATIONS)
 - Wallet Provider: ${walletInfo.provider || 'Not specified'}
 - Wallet Balance: ${walletInfo.balance || 'Not available'}
 ${walletInfo.ens ? `- ENS Name: ${walletInfo.ens}` : ''}
 
 When providing responses, you should take this wallet information into account:
-1. For swap requests, use the user's actual wallet address and network when possible
+1. For swap requests, ALWAYS use ${currentChain || 'ethereum'} as the default chain unless explicitly specified otherwise
 2. Personalize responses based on the user's wallet information 
-3. For token balances or network-specific information, use the connected network
+3. For token balances or network-specific information, use the connected network (${currentChain || 'ethereum'})
 4. When suggesting actions, ensure they're compatible with the user's wallet type and network
 `;
     }
     
-    // Define system prompt
+    // Define system prompt with current chain context
     const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform. Your capabilities include:
 
 1. DeFi Swap Operations:
-   - Parse swap requests by identifying tokenIn, tokenOut, amount, and chain (Ethereum/Arbitrum)
-   - Default to Ethereum when chain is unspecified
+   - Parse swap requests by identifying tokenIn, tokenOut, amount, and chain (Ethereum/Arbitrum/Base/Avalanche/Optimism)
+   - IMPORTANT: User is currently connected to ${currentChain || 'ethereum'} network - use this as the default chain when not specified
    - Handle protocol selection automatically
 
 2. DeFi News & Information:
@@ -923,7 +925,7 @@ For news and information requests, provide direct, informative responses without
       console.error('OpenAI API error, using fallback parser:', openaiError);
       
       // Try fallback parser when OpenAI is unavailable
-      const fallbackResult = fallbackParser(text);
+      const fallbackResult = fallbackParser(text, currentChain);
       
       if (fallbackResult.isValid) {
         const { tokenIn, tokenOut, amount, chain, protocol } = fallbackResult.data;
@@ -984,7 +986,7 @@ For news and information requests, provide direct, informative responses without
       // Use fallback parser when OpenAI quota is exceeded
       try {
         // We already have the text from the earlier request.json() call
-        const fallbackResult = fallbackParser(text);
+        const fallbackResult = fallbackParser(text, 'ethereum');
         
         if (fallbackResult.isValid) {
           const { tokenIn, tokenOut, amount, chain, protocol } = fallbackResult.data;
