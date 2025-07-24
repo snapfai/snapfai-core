@@ -27,8 +27,23 @@ import SwapSupportedTokensModal from './SwapSupportedTokensModal';
 // Add rehype-raw to support HTML in markdown for links
 import rehypeRaw from 'rehype-raw';
 
-// Custom link component to open external links in new tab
-const CustomLink = ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+// Custom link component to open external links in new tab or open supported tokens modal
+const CustomLink = ({ href, children, setShowTokensModal, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { setShowTokensModal?: (open: boolean) => void }) => {
+  if (href === '#supported-tokens' && setShowTokensModal) {
+    return (
+      <a 
+        {...props}
+        href={href}
+        onClick={e => {
+          e.preventDefault();
+          setShowTokensModal(true);
+        }}
+        className="text-blue-600 hover:text-blue-800 underline"
+      >
+        {children}
+      </a>
+    );
+  }
   if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
     return (
       <a 
@@ -1305,7 +1320,7 @@ I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get mark
 
 ## Currently Connected: **${currentChain}**
 
-Type a token symbol (e.g. USDC, WETH) or search for a token.
+Type a token symbol (e.g. USDC, WETH) or search for a token. [View supported tokens](#supported-tokens)
 
 ## Quick Start
 - **Swap tokens**: "Swap 100 USDC to ETH"
@@ -2408,7 +2423,7 @@ Just let me know what you'd prefer!`);
                         <ReactMarkdown 
                           rehypePlugins={[rehypeRaw]}
                           components={{
-                            a: CustomLink
+                            a: (props) => <CustomLink {...props} setShowTokensModal={setShowTokensModal} />
                           }}
                         >
                           {message.content}
