@@ -172,7 +172,7 @@ export function usePortfolio(): PortfolioData {
 
       // Get unique token symbols for price fetching
       const uniqueSymbols = Array.from(new Set(alchemyHoldings.map(h => h.token.symbol)))
-      const prices = await fetchTokenPrices(uniqueSymbols)
+      const prices = await fetchTokenPrices(uniqueSymbols, alchemyHoldings)
 
       // Convert Alchemy holdings to TokenHoldings with price data
       let allHoldings: TokenHolding[] = alchemyHoldings.map(holding => {
