@@ -37,11 +37,41 @@ interface PortfolioData {
   refresh: () => Promise<void>
 }
 
+// Formatting utility functions
+export const formatCurrency = (value: number): string => {
+  if (value === 0) return '$0.00000'
+  
+  // For values >= $1, show 2 decimal places like normal currency
+  if (value >= 1) {
+    return `$${value.toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`
+  }
+  
+  // For values < $1, show up to 5 decimal places
+  return `$${value.toFixed(5)}`
+}
+
+export const formatPercentage = (value: number): string => {
+  return value.toFixed(2)
+}
+
+export const formatChange24h = (value: number): string => {
+  return value.toFixed(2)
+}
+
 // Token filtering logic - determine if token should be hidden
 const shouldHideToken = (holding: TokenHolding): boolean => {
   const { valueUSD, token, balance } = holding
   
-  // Hide if value is too low (dust)
+  // NEVER hide native tokens (ETH, MATIC, AVAX, etc.) - they are always important
+  const nativeTokens = ['ETH', 'MATIC', 'AVAX', 'BNB', 'SOL', 'ARB', 'OP', 'BASE']
+  if (nativeTokens.includes(token.symbol.toUpperCase())) {
+    return false
+  }
+  
+  // Hide if value is too low (dust) - but allow native tokens
   if (valueUSD < 0.10) return true
   
   // Hide if no price data available and very small balance
@@ -72,6 +102,12 @@ const shouldHideToken = (holding: TokenHolding): boolean => {
 const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
   const { valueUSD, token, price } = holding
   
+  // Native tokens are always low risk, regardless of value
+  const nativeTokens = ['ETH', 'MATIC', 'AVAX', 'BNB', 'SOL', 'ARB', 'OP', 'BASE']
+  if (nativeTokens.includes(token.symbol.toUpperCase())) {
+    return 'low'
+  }
+  
   // High risk indicators
   if (price === 0) return 'high'
   if (valueUSD < 1) return 'high'
@@ -82,7 +118,7 @@ const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
   if (!token.logoURI) return 'medium'
   
   // Low risk for established tokens
-  const establishedTokens = ['ETH', 'WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'LINK', 'UNI', 'AAVE']
+  const establishedTokens = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'LINK', 'UNI', 'AAVE']
   if (establishedTokens.includes(token.symbol.toUpperCase())) return 'low'
   
   return 'medium'
@@ -113,7 +149,7 @@ export function usePortfolio(): PortfolioData {
     
     const holding: TokenHolding = {
       ...alchemyHolding,
-      value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : '$0.00',
+      value: formatCurrency(valueUSD),
       valueUSD,
       change24h: priceData.change24h,
       price: priceData.price
@@ -198,7 +234,7 @@ export function usePortfolio(): PortfolioData {
             token: { symbol: 'ETH', name: 'Ethereum', decimals: 18, address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', logoURI: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png' },
             balance: '2.4500',
             balanceRaw: '0x21e19e0c9bab2400000',
-            value: '$6,125.50',
+            value: formatCurrency(6125.50),
             valueUSD: 6125.50,
             chain: 'Ethereum',
             chainId: 1,
@@ -209,7 +245,7 @@ export function usePortfolio(): PortfolioData {
             token: { symbol: 'USDC', name: 'USD Coin', decimals: 6, address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', logoURI: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png' },
             balance: '1,250.00',
             balanceRaw: '0x4a817c800',
-            value: '$1,250.00',
+            value: formatCurrency(1250.00),
             valueUSD: 1250.00,
             chain: 'Arbitrum',
             chainId: 42161,
@@ -236,10 +272,10 @@ export function usePortfolio(): PortfolioData {
       const uniqueChains = new Set(filteredHoldings.map(h => h.chainId))
 
               setStats({
-          totalValue: `$${totalValueUSD.toLocaleString()}`,
+          totalValue: formatCurrency(totalValueUSD),
           totalValueUSD,
-          change24h: totalChange24h,
-          changePercent,
+          change24h: parseFloat(formatChange24h(totalChange24h)),
+          changePercent: parseFloat(formatPercentage(changePercent)),
           totalAssets: allHoldings.length, // Total count of all tokens (visible + hidden)
           activeChains: uniqueChains.size,
           hiddenAssets: filteredHiddenHoldings.length,

@@ -1,6 +1,14 @@
 import { Alchemy, Network, TokenBalanceType } from 'alchemy-sdk'
-import { type TokenConfig } from './tokens'
+import { type TokenConfig, getNativeToken } from './tokens'
 import { SUPPORTED_CHAINS } from './chains'
+import { 
+  findSpecialTokenByAddress, 
+  findSpecialTokenBySymbol,
+  specialTokenToTokenConfig,
+  getSpecialTokenPrice,
+  isSpecialToken,
+  type SpecialTokenConfig 
+} from './special-tokens'
 
 export interface AlchemyTokenHolding {
   token: TokenConfig
@@ -63,6 +71,38 @@ export const fetchTokenBalancesForChain = async (
       10: ['0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'], // USDC on Optimism
     }
     
+    // Get native token balance first
+    let nativeTokenHolding: AlchemyTokenHolding | null = null
+    try {
+      const nativeBalance = await alchemy.core.getBalance(userAddress)
+      console.log(`Raw native balance for ${userAddress}:`, nativeBalance?.toString())
+      
+      if (nativeBalance && nativeBalance.gt(0)) {
+        const nativeToken = getNativeToken(chainId)
+        console.log(`Native token for chain ${chainId}:`, nativeToken)
+        
+        if (nativeToken) {
+          const balanceInEth = parseFloat(nativeBalance.toString()) / Math.pow(10, 18)
+          console.log(`Native token ${nativeToken.symbol}: balance=${balanceInEth}`)
+          
+          nativeTokenHolding = {
+            token: nativeToken,
+            balance: balanceInEth.toFixed(6),
+            balanceRaw: nativeBalance.toString(),
+            valueUSD: 0, // Will be calculated with prices
+            chain: chainInfo.name,
+            chainId
+          }
+        } else {
+          console.warn(`No native token found for chain ${chainId}`)
+        }
+      } else {
+        console.log(`No native token balance found for ${userAddress} on chain ${chainId}`)
+      }
+    } catch (error) {
+      console.warn(`Failed to get native token balance for chain ${chainId}:`, error)
+    }
+    
     // Get all ERC20 token balances using Alchemy's API
     const balances = await alchemy.core.getTokenBalances(userAddress, { type: TokenBalanceType.ERC20 })
     
@@ -110,33 +150,51 @@ export const fetchTokenBalancesForChain = async (
     // Process each token with non-zero balance (increased limit to catch more tokens)
     for (const tokenBalance of nonZeroBalances.slice(0, 200)) {
       try {
-        // Get token metadata from Alchemy
-        const metadata = await alchemy.core.getTokenMetadata(tokenBalance.contractAddress)
+        let token: TokenConfig | null = null
+        let balance = 0
         
-        // Skip if essential metadata is missing
-        if (!metadata || !metadata.symbol || typeof metadata.decimals !== 'number') {
-          console.warn(`Skipping token ${tokenBalance.contractAddress}: missing metadata`)
-          continue
-        }
+        // First, check if this is a special token
+        const specialToken = findSpecialTokenByAddress(tokenBalance.contractAddress, chainId)
+        
+        if (specialToken) {
+          // Use special token data
+          console.log(`Found special token: ${specialToken.symbol} at ${specialToken.address}`)
+          token = specialTokenToTokenConfig(specialToken)
+          
+          // Convert balance using special token decimals
+          const balanceWei = parseInt(tokenBalance.tokenBalance || '0', 16)
+          balance = balanceWei / Math.pow(10, specialToken.decimals)
+          
+          console.log(`Special token ${specialToken.symbol}: balance=${balance}, decimals=${specialToken.decimals}`)
+        } else {
+          // Get token metadata from Alchemy for regular tokens
+          const metadata = await alchemy.core.getTokenMetadata(tokenBalance.contractAddress)
+          
+          // Skip if essential metadata is missing
+          if (!metadata || !metadata.symbol || typeof metadata.decimals !== 'number') {
+            console.warn(`Skipping token ${tokenBalance.contractAddress}: missing metadata`)
+            continue
+          }
 
-        // Convert balance to human readable format
-        const balanceWei = parseInt(tokenBalance.tokenBalance || '0', 16)
-        const balance = balanceWei / Math.pow(10, metadata.decimals)
-        
-        // @ts-ignore - Alchemy SDK type issue
-        console.log(`Token ${metadata.symbol || 'UNKNOWN'}: balance=${balance}, decimals=${metadata.decimals}, raw=${tokenBalance.tokenBalance}`)
+          // Convert balance to human readable format
+          const balanceWei = parseInt(tokenBalance.tokenBalance || '0', 16)
+          balance = balanceWei / Math.pow(10, metadata.decimals)
+          
+          // @ts-ignore - Alchemy SDK type issue
+          console.log(`Token ${metadata.symbol || 'UNKNOWN'}: balance=${balance}, decimals=${metadata.decimals}, raw=${tokenBalance.tokenBalance}`)
+          
+          // Create token config with safe string handling
+          token = {
+            symbol: metadata.symbol as string,
+            name: (metadata.name || metadata.symbol) as string,
+            decimals: metadata.decimals,
+            address: tokenBalance.contractAddress,
+            logoURI: metadata.logo as string | undefined
+          }
+        }
         
         // Skip very small balances (lowered threshold to catch more tokens)
         if (balance < 0.000000001) continue
-
-        // Create token config with safe string handling (metadata.symbol is guaranteed to exist here)
-        const token: TokenConfig = {
-          symbol: metadata.symbol as string,  // Type assertion - we checked above
-          name: (metadata.name || metadata.symbol) as string,  // Type assertion - fallback guaranteed
-          decimals: metadata.decimals,
-          address: tokenBalance.contractAddress,
-          logoURI: metadata.logo as string | undefined
-        }
 
         const holding: AlchemyTokenHolding = {
           token,
@@ -153,6 +211,12 @@ export const fetchTokenBalancesForChain = async (
       }
     }
 
+    // Add native token to holdings if it exists
+    if (nativeTokenHolding) {
+      holdings.unshift(nativeTokenHolding) // Add to beginning of array
+      console.log(`Added native token ${nativeTokenHolding.token.symbol} to holdings`)
+    }
+
     return holdings
   } catch (error) {
     console.error(`Error fetching balances for chain ${chainId}:`, error)
@@ -160,12 +224,29 @@ export const fetchTokenBalancesForChain = async (
   }
 }
 
-// Price fetching using CoinGecko API
+// Price fetching using Etherscan API + CoinGecko hybrid approach
 export const fetchTokenPrices = async (symbols: string[]): Promise<Record<string, { price: number, change24h: number }>> => {
   if (symbols.length === 0) return {}
   
+  const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || 'YourApiKeyToken'
+  
   try {
-    // Convert symbols to CoinGecko IDs (simplified mapping)
+    // First, try to get prices from CoinGecko (more reliable for price data)
+    const coinGeckoPrices = await fetchCoinGeckoPrices(symbols)
+    
+    // For tokens not found in CoinGecko, verify them using Etherscan and use fallback prices
+    const verifiedPrices = await verifyTokensWithEtherscan(symbols, coinGeckoPrices, ETHERSCAN_API_KEY)
+    
+    return verifiedPrices
+  } catch (error) {
+    console.error('Error in hybrid price fetching:', error)
+    return getFallbackPrices(symbols)
+  }
+}
+
+// Fetch prices from CoinGecko API
+const fetchCoinGeckoPrices = async (symbols: string[]): Promise<Record<string, { price: number, change24h: number }>> => {
+  try {
     const symbolToId = (symbol: string): string => {
       const mapping: Record<string, string> = {
         'ETH': 'ethereum',
@@ -196,13 +277,13 @@ export const fetchTokenPrices = async (symbols: string[]): Promise<Record<string
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
       { 
         headers: { 'User-Agent': 'SnapFAI Portfolio App' },
-        next: { revalidate: 60 } // Cache for 1 minute
+        next: { revalidate: 60 }
       }
     )
     
     if (!response.ok) {
-      console.error('CoinGecko API error:', response.status, response.statusText)
-      return getFallbackPrices(symbols)
+      console.warn('CoinGecko API error, falling back to Etherscan verification')
+      return {}
     }
     
     const data = await response.json()
@@ -217,17 +298,126 @@ export const fetchTokenPrices = async (symbols: string[]): Promise<Record<string
           price: coinData.usd,
           change24h: coinData.usd_24h_change || 0
         }
-      } else {
-        // Fallback for unknown tokens
-        prices[symbol.toUpperCase()] = { price: 0, change24h: 0 }
       }
     })
     
     return prices
   } catch (error) {
-    console.error('Error fetching prices from CoinGecko:', error)
-    return getFallbackPrices(symbols)
+    console.error('Error fetching from CoinGecko:', error)
+    return {}
   }
+}
+
+// Verify tokens using Etherscan API and provide fallback prices
+const verifyTokensWithEtherscan = async (
+  symbols: string[], 
+  coinGeckoPrices: Record<string, { price: number, change24h: number }>,
+  apiKey: string
+): Promise<Record<string, { price: number, change24h: number }>> => {
+  const symbolToAddress = (symbol: string): string => {
+    const mapping: Record<string, string> = {
+      'ETH': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'WETH': '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+      'USDC': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      'USDT': '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      'DAI': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      'WBTC': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+      'LINK': '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+      'UNI': '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+      'AAVE': '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',
+      'CRV': '0xD533a949740bb3306d119CC777fa900bA034cd52',
+      'COMP': '0xc00e94Cb662C3520282E6f5717214004A7f26888',
+      'MKR': '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2',
+      'YFI': '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad9eC',
+      'SNX': '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F',
+      'SUSHI': '0x6B3595068778DD592e39A122f4f5a5cF09C90fE2'
+    }
+    return mapping[symbol.toUpperCase()] || ''
+  }
+  
+  const finalPrices = { ...coinGeckoPrices }
+  
+  // For tokens not found in CoinGecko, check special tokens first, then verify with Etherscan
+  for (const symbol of symbols) {
+    if (!finalPrices[symbol.toUpperCase()]) {
+      // First, check if it's a special token
+      const specialTokenPrice = getSpecialTokenPrice(symbol)
+      if (specialTokenPrice) {
+        finalPrices[symbol.toUpperCase()] = specialTokenPrice
+        console.log(`Using special token price for ${symbol}: $${specialTokenPrice.price}`)
+        continue
+      }
+      
+      const address = symbolToAddress(symbol)
+      
+      if (address && address !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+        try {
+          // Verify token exists on Etherscan
+          const response = await fetch(
+            `https://api.etherscan.io/api?module=proxy&action=eth_getCode&address=${address}&tag=latest&apikey=${apiKey}`,
+            { 
+              headers: { 'User-Agent': 'SnapFAI Portfolio App' },
+              next: { revalidate: 300 } // Cache for 5 minutes
+            }
+          )
+          
+          if (response.ok) {
+            const data = await response.json()
+            // If contract exists (code is not 0x), use fallback price
+            if (data.result && data.result !== '0x') {
+              const fallbackPrice = getFallbackPrice(symbol)
+              finalPrices[symbol.toUpperCase()] = {
+                price: fallbackPrice,
+                change24h: 0
+              }
+              console.log(`Verified token ${symbol} with Etherscan, using fallback price: $${fallbackPrice}`)
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to verify ${symbol} with Etherscan:`, error)
+        }
+      } else if (symbol.toUpperCase() === 'ETH') {
+        // Native ETH
+        finalPrices['ETH'] = {
+          price: 2500,
+          change24h: 0
+        }
+      }
+    }
+  }
+  
+  return finalPrices
+}
+
+// Helper function to get fallback prices for tokens
+const getFallbackPrice = (symbol: string): number => {
+  // First check special tokens
+  const specialPrice = getSpecialTokenPrice(symbol)
+  if (specialPrice) {
+    return specialPrice.price
+  }
+  
+  const fallbackPrices: Record<string, number> = {
+    'ETH': 2500,
+    'WETH': 2500,
+    'USDC': 1.00,
+    'USDT': 1.00,
+    'DAI': 1.00,
+    'WBTC': 45000,
+    'LINK': 15.00,
+    'UNI': 8.00,
+    'AAVE': 120.00,
+    'CRV': 0.50,
+    'COMP': 60.00,
+    'MKR': 1500.00,
+    'YFI': 8000.00,
+    'SNX': 3.00,
+    'SUSHI': 1.20,
+    'MATIC': 0.85,
+    'AVAX': 25.50
+  }
+  
+  return fallbackPrices[symbol.toUpperCase()] || 0
 }
 
 // Fallback prices when API fails

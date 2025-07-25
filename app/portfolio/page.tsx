@@ -63,12 +63,7 @@ export default function PortfolioPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                Back to Home
-              </Button>
-            </Link>
+            {/* Removed Back to Home button */}
             <div>
               <h1 className="text-3xl font-bold">Portfolio</h1>
               <p className="text-muted-foreground">Track your DeFi assets across all networks</p>
@@ -115,8 +110,8 @@ export default function PortfolioPage() {
                     <TrendingDown className="h-4 w-4 text-red-500" />
                   )}
                   <span className={`text-sm ${portfolioStats.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {portfolioStats.changePercent >= 0 ? '+' : ''}{portfolioStats.changePercent}% 
-                    (${portfolioStats.change24h >= 0 ? '+' : ''}${portfolioStats.change24h})
+                    {portfolioStats.changePercent >= 0 ? '+' : ''}{portfolioStats.changePercent.toFixed(2)}% 
+                    (${portfolioStats.change24h >= 0 ? '+' : ''}${portfolioStats.change24h.toFixed(2)})
                   </span>
                   <span className="text-xs text-muted-foreground">24h</span>
                 </div>
@@ -244,7 +239,7 @@ export default function PortfolioPage() {
                           <p className="font-medium">{holding.value}</p>
                           {holding.change24h !== undefined && (
                             <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {holding.change24h >= 0 ? '+' : ''}{holding.change24h}%
+                              {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
                             </p>
                           )}
                         </div>
