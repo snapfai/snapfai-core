@@ -322,7 +322,7 @@ export default function PortfolioPage() {
                           <div className="text-right">
                             <p className="text-sm font-medium">{holding.value}</p>
                             <p className="text-xs text-muted-foreground">
-                              {holding.price === 0 ? 'No price' : `$${holding.price}`}
+                              {holding.price === 0 ? 'No price' : `$${holding.price?.toFixed(6) || '0.000000'}`}
                             </p>
                           </div>
                         </div>
