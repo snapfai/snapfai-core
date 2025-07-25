@@ -7,8 +7,10 @@ import {
   specialTokenToTokenConfig,
   getSpecialTokenPrice,
   isSpecialToken,
-  type SpecialTokenConfig 
+  type SpecialTokenConfig,
+  SPECIAL_TOKENS
 } from './special-tokens'
+import { TokenHolding } from '@/hooks/usePortfolio'
 
 export interface AlchemyTokenHolding {
   token: TokenConfig
@@ -224,88 +226,257 @@ export const fetchTokenBalancesForChain = async (
   }
 }
 
-// Price fetching using Etherscan API + CoinGecko hybrid approach
-export const fetchTokenPrices = async (symbols: string[]): Promise<Record<string, { price: number, change24h: number }>> => {
-  if (symbols.length === 0) return {}
-  
-  const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || 'YourApiKeyToken'
-  
+// Helper function to convert symbol to address
+function symbolToAddress(symbol: string): string {
+  const mapping: Record<string, string> = {
+    'ETH': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    'WETH': '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+    'USDC': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    'USDT': '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    'DAI': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+    'WBTC': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+    'LINK': '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+    'UNI': '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+    'AAVE': '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',
+    'CRV': '0xD533a949740bb3306d119CC777fa900bA034cd52',
+    'COMP': '0xc00e94Cb662C3520282E6f5717214004A7f26888',
+    'MKR': '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2',
+    'YFI': '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad9eC',
+    'SNX': '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F',
+    'SUSHI': '0x6B3595068778DD592e39A122f4f5a5cF09C90fE2'
+  }
+  return mapping[symbol.toUpperCase()] || ''
+}
+
+// Unified fetchTokenPrices function that handles both TokenHolding[] and string[]
+export async function fetchTokenPrices(
+  input: TokenHolding[] | string[]
+): Promise<Record<string, { price: number; change24h: number }>> {
   try {
-    // First, try to get prices from CoinGecko (more reliable for price data)
-    const coinGeckoPrices = await fetchCoinGeckoPrices(symbols)
-    
-    // For tokens not found in CoinGecko, verify them using Etherscan and use fallback prices
-    const verifiedPrices = await verifyTokensWithEtherscan(symbols, coinGeckoPrices, ETHERSCAN_API_KEY)
-    
-    return verifiedPrices
+    if (input.length === 0) return {}
+
+    // Check if input is TokenHolding[] or string[]
+    if (typeof input[0] === 'string') {
+      // Handle string[] input (old implementation)
+      const symbols = input as string[]
+      const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || 'YourApiKeyToken'
+      
+      // Convert symbols to TokenHolding[] format for CoinGecko
+      const tokens: TokenHolding[] = symbols.map(symbol => ({
+        token: {
+          symbol: symbol.toUpperCase(),
+          name: symbol.toUpperCase(),
+          decimals: 18,
+          address: symbolToAddress(symbol)
+        },
+        balance: '0',
+        balanceRaw: '0',
+        value: '$0.00',
+        valueUSD: 0,
+        chain: 'Ethereum',
+        chainId: 1,
+        change24h: 0,
+        price: 0
+      }))
+
+      // Try CoinGecko first
+      const coinGeckoPrices = await fetchCoinGeckoPrices(tokens)
+      
+      // For tokens not found in CoinGecko, verify them using Etherscan and use fallback prices
+      return await verifyTokensWithEtherscan(symbols, coinGeckoPrices, ETHERSCAN_API_KEY)
+    } else {
+      // Handle TokenHolding[] input (new implementation)
+      const tokens = input as TokenHolding[]
+      const prices = await fetchCoinGeckoPrices(tokens)
+      
+      // If we got any valid prices, return them
+      if (Object.keys(prices).length > 0) {
+        return prices
+      }
+
+      // If CoinGecko failed completely, return default prices
+      return tokens.reduce((acc, token) => {
+        acc[token.token.symbol] = { price: 0, change24h: 0 }
+        return acc
+      }, {} as Record<string, { price: number; change24h: number }>)
+    }
   } catch (error) {
-    console.error('Error in hybrid price fetching:', error)
-    return getFallbackPrices(symbols)
+    console.error('Error in fetchTokenPrices:', error)
+    // Return default prices on error
+    if (typeof input[0] === 'string') {
+      return getFallbackPrices(input as string[])
+    } else {
+      return (input as TokenHolding[]).reduce((acc, token) => {
+        acc[token.token.symbol] = { price: 0, change24h: 0 }
+        return acc
+      }, {} as Record<string, { price: number; change24h: number }>)
+    }
   }
 }
 
-// Fetch prices from CoinGecko API
-const fetchCoinGeckoPrices = async (symbols: string[]): Promise<Record<string, { price: number, change24h: number }>> => {
+async function fetchCoinGeckoPrices(tokens: TokenHolding[]): Promise<Record<string, { price: number; change24h: number }>> {
+  const prices: Record<string, { price: number; change24h: number }> = {}
+  
   try {
-    const symbolToId = (symbol: string): string => {
-      const mapping: Record<string, string> = {
-        'ETH': 'ethereum',
-        'WETH': 'weth',
-        'USDC': 'usd-coin',
-        'USDT': 'tether',
-        'DAI': 'dai',
-        'WBTC': 'wrapped-bitcoin',
-        'MATIC': 'matic-network',
-        'POL': 'matic-network',
-        'AVAX': 'avalanche-2',
-        'LINK': 'chainlink',
-        'UNI': 'uniswap',
-        'AAVE': 'aave',
-        'CRV': 'curve-dao-token',
-        'COMP': 'compound-governance-token',
-        'MKR': 'maker',
-        'YFI': 'yearn-finance',
-        'SNX': 'havven',
-        'SUSHI': 'sushi'
-      }
-      return mapping[symbol.toUpperCase()] || symbol.toLowerCase()
+    // Batch tokens into groups of 100 to avoid URL length limits
+    const batchSize = 100
+    const batches = []
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      batches.push(tokens.slice(i, i + batchSize))
     }
-    
-    const ids = [...new Set(symbols.map(symbolToId))].join(',')
-    
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-      { 
-        headers: { 'User-Agent': 'SnapFAI Portfolio App' },
-        next: { revalidate: 60 }
+
+    // Process each batch
+    for (const batch of batches) {
+      // First try contract-based endpoint
+      const addresses = batch
+        .map(token => token.token.address)
+        .filter(addr => addr && addr !== '0x0000000000000000000000000000000000000000')
+        .join(',')
+
+      if (!addresses) continue
+
+      try {
+        // Try the contract-based endpoint first
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=${addresses}&vs_currencies=usd&include_24hr_change=true`,
+          {
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            next: { revalidate: 60 } // Cache for 1 minute
+          }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          // Map response data to our price format
+          for (const token of batch) {
+            const addr = token.token.address?.toLowerCase()
+            if (addr && data[addr]) {
+              prices[token.token.symbol] = {
+                price: data[addr].usd || 0,
+                change24h: data[addr].usd_24h_change || 0
+              }
+            }
+          }
+        } else {
+          console.warn(`CoinGecko contract API error: ${response.status} ${response.statusText}`)
+        }
+      } catch (error) {
+        console.warn('Error with contract-based endpoint:', error)
       }
-    )
-    
-    if (!response.ok) {
-      console.warn('CoinGecko API error, falling back to Etherscan verification')
-      return {}
-    }
-    
-    const data = await response.json()
-    const prices: Record<string, { price: number, change24h: number }> = {}
-    
-    symbols.forEach(symbol => {
-      const id = symbolToId(symbol)
-      const coinData = data[id]
-      
-      if (coinData && coinData.usd) {
-        prices[symbol.toUpperCase()] = {
-          price: coinData.usd,
-          change24h: coinData.usd_24h_change || 0
+
+      // For tokens without prices, try the ID-based endpoint
+      const tokensWithoutPrices = batch.filter(token => !prices[token.token.symbol])
+      if (tokensWithoutPrices.length > 0) {
+        try {
+          const ids = tokensWithoutPrices
+            .map(token => getCoinGeckoId(token.token.symbol))
+            .filter(Boolean)
+            .join(',')
+
+          if (ids) {
+            const response = await fetch(
+              `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
+              {
+                headers: {
+                  'Accept': 'application/json',
+                  'Cache-Control': 'no-cache'
+                },
+                next: { revalidate: 60 }
+              }
+            )
+
+            if (response.ok) {
+              const data = await response.json()
+              
+              for (const token of tokensWithoutPrices) {
+                const id = getCoinGeckoId(token.token.symbol)
+                if (id && data[id]) {
+                  prices[token.token.symbol] = {
+                    price: data[id].usd || 0,
+                    change24h: data[id].usd_24h_change || 0
+                  }
+                }
+              }
+            } else {
+              console.warn(`CoinGecko ID API error: ${response.status} ${response.statusText}`)
+            }
+          }
+        } catch (error) {
+          console.warn('Error with ID-based endpoint:', error)
         }
       }
-    })
-    
+
+      // For any remaining tokens without prices, set default values
+      for (const token of batch) {
+        if (!prices[token.token.symbol]) {
+          // Check special tokens first
+          const specialPrice = getSpecialTokenPrice(token.token.symbol)
+          if (specialPrice) {
+            prices[token.token.symbol] = specialPrice
+          } else {
+            // Use fallback price or default to 0
+            const fallbackPrice = getFallbackPrice(token.token.symbol)
+            prices[token.token.symbol] = {
+              price: fallbackPrice,
+              change24h: 0
+            }
+          }
+        }
+      }
+
+      // Add small delay between batches to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+
     return prices
   } catch (error) {
-    console.error('Error fetching from CoinGecko:', error)
-    return {}
+    console.error('Error fetching CoinGecko prices:', error)
+    // Return empty prices object instead of throwing
+    return tokens.reduce((acc, token) => {
+      // Check special tokens first
+      const specialPrice = getSpecialTokenPrice(token.token.symbol)
+      if (specialPrice) {
+        acc[token.token.symbol] = specialPrice
+      } else {
+        // Use fallback price or default to 0
+        const fallbackPrice = getFallbackPrice(token.token.symbol)
+        acc[token.token.symbol] = {
+          price: fallbackPrice,
+          change24h: 0
+        }
+      }
+      return acc
+    }, {} as Record<string, { price: number; change24h: number }>)
   }
+}
+
+// Helper function to get CoinGecko IDs for common tokens
+function getCoinGeckoId(symbol: string): string {
+  const mapping: Record<string, string> = {
+    'ETH': 'ethereum',
+    'WETH': 'weth',
+    'USDC': 'usd-coin',
+    'USDT': 'tether',
+    'DAI': 'dai',
+    'WBTC': 'wrapped-bitcoin',
+    'MATIC': 'matic-network',
+    'POL': 'matic-network',
+    'AVAX': 'avalanche-2',
+    'LINK': 'chainlink',
+    'UNI': 'uniswap',
+    'AAVE': 'aave',
+    'CRV': 'curve-dao-token',
+    'COMP': 'compound-governance-token',
+    'MKR': 'maker',
+    'YFI': 'yearn-finance',
+    'SNX': 'havven',
+    'SUSHI': 'sushi'
+  }
+  return mapping[symbol.toUpperCase()] || ''
 }
 
 // Verify tokens using Etherscan API and provide fallback prices
@@ -314,26 +485,6 @@ const verifyTokensWithEtherscan = async (
   coinGeckoPrices: Record<string, { price: number, change24h: number }>,
   apiKey: string
 ): Promise<Record<string, { price: number, change24h: number }>> => {
-  const symbolToAddress = (symbol: string): string => {
-    const mapping: Record<string, string> = {
-      'ETH': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-      'WETH': '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-      'USDC': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-      'USDT': '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-      'DAI': '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-      'WBTC': '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-      'LINK': '0x514910771AF9Ca656af840dff83E8264EcF986CA',
-      'UNI': '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
-      'AAVE': '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',
-      'CRV': '0xD533a949740bb3306d119CC777fa900bA034cd52',
-      'COMP': '0xc00e94Cb662C3520282E6f5717214004A7f26888',
-      'MKR': '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2',
-      'YFI': '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad9eC',
-      'SNX': '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F',
-      'SUSHI': '0x6B3595068778DD592e39A122f4f5a5cF09C90fE2'
-    }
-    return mapping[symbol.toUpperCase()] || ''
-  }
   
   const finalPrices = { ...coinGeckoPrices }
   

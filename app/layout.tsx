@@ -1,11 +1,10 @@
-import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import Header from "@/components/Header"
-import { Toaster } from "@/components/ui/toaster"
 import { headers } from 'next/headers'
 import { ContextProvider } from '@/context'
+import Header from '@/components/Header'
+import { Providers } from '@/components/providers'
+
+import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -17,9 +16,9 @@ export const metadata = {
 
 export default async function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   const headersObj = await headers();
   const cookies = headersObj.get('cookie');
 
@@ -27,11 +26,10 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ContextProvider cookies={cookies || undefined}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <Providers>
             <Header />
             <main className="min-h-[calc(100vh-64px)]">{children}</main>
-            <Toaster />
-          </ThemeProvider>
+          </Providers>
         </ContextProvider>
       </body>
     </html>
