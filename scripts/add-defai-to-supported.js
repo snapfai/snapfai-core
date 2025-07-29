@@ -1,0 +1,20 @@
+// Script to add DeFAI token to supported tokens list
+console.log('To add DeFAI to supported tokens:');
+console.log('');
+console.log('1. Open lib/tokens.ts');
+console.log('2. Find the Arbitrum section (chain ID 42161)');
+console.log('3. Add this token object to the array:');
+console.log('');
+console.log('{');
+console.log('  address: "0x...", // DeFAI contract address on Arbitrum');
+console.log('  symbol: "DeFAI",');
+console.log('  decimals: 18,');
+console.log('  name: "DeFAI",');
+console.log('  logoURI: "https://assets.coingecko.com/coins/images/.../defai.png"');
+console.log('},');
+console.log('');
+console.log('4. You\'ll need to find the correct contract address and logo URI');
+console.log('5. Verify the decimals (usually 18 for most tokens)');
+console.log('');
+console.log('Note: DeFAI appears to be a relatively new or obscure token,');
+console.log('so you may need to research its contract address and metadata.'); 

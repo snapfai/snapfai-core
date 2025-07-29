@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 import { type TokenConfig } from '@/lib/tokens'
-import { fetchTokenBalancesForChain, fetchTokenPrices, type AlchemyTokenHolding } from '@/lib/alchemy-portfolio'
+import { fetchTokenBalancesForChain, fetchAlchemyPriceForSymbol, type AlchemyTokenHolding } from '@/lib/alchemy-portfolio'
 import { useQuery, useQueries, type UseQueryOptions } from '@tanstack/react-query'
 
 export interface TokenHolding {
@@ -14,7 +14,6 @@ export interface TokenHolding {
   chainId: number
   change24h?: number
   price?: number
-  isHidden?: boolean // New field to mark hidden tokens
   riskLevel?: 'low' | 'medium' | 'high' // Risk assessment
 }
 
@@ -25,17 +24,15 @@ export interface PortfolioStats {
   changePercent: number
   totalAssets: number
   activeChains: number
-  hiddenAssets: number // Count of hidden tokens
-  hiddenValue: number // Total value of hidden tokens
 }
 
 interface PortfolioData {
   stats: PortfolioStats
   holdings: TokenHolding[]
-  hiddenHoldings: TokenHolding[] // Separate array for hidden tokens
   isLoading: boolean
   error: string | null
   refresh: () => Promise<void>
+  refreshToken: (symbol: string) => Promise<void>
 }
 
 // Formatting utility functions
@@ -62,42 +59,7 @@ export const formatChange24h = (value: number): string => {
   return value.toFixed(2)
 }
 
-// Token filtering logic - determine if token should be hidden
-const shouldHideToken = (holding: TokenHolding): boolean => {
-  const { valueUSD, token, balance } = holding
-  
-  // NEVER hide native tokens (ETH, MATIC, AVAX, etc.) - they are always important
-  const nativeTokens = ['ETH', 'MATIC', 'AVAX', 'BNB', 'SOL', 'ARB', 'OP', 'BASE']
-  if (nativeTokens.includes(token.symbol.toUpperCase())) {
-    return false
-  }
-  
-  // Hide if value is too low (dust) - but allow native tokens
-  if (valueUSD < 0.10) return true
-  
-  // Hide if no price data available and very small balance
-  if (holding.price === 0 && parseFloat(balance) < 0.001) return true
-  
-  // Hide common spam/airdrop tokens (add more as needed)
-  const spamTokens = [
-    'SPAM', 'AIRDROP', 'FREE', 'TEST', 'SCAM', 'FAKE',
-    'PHISHING', 'VIRUS', 'MALWARE', 'HONEYPOT'
-  ]
-  
-  const isSpamToken = spamTokens.some(spam => 
-    token.symbol.toUpperCase().includes(spam) || 
-    token.name.toUpperCase().includes(spam)
-  )
-  
-  if (isSpamToken) return true
-  
-  // Hide tokens with suspicious characteristics
-  if (token.symbol.length > 20) return true // Very long symbols
-  if (token.symbol.includes('🚀') || token.symbol.includes('💎')) return true // Emoji tokens
-  if (/^\d+$/.test(token.symbol)) return true // Pure number symbols
-  
-  return false
-}
+
 
 // Assess risk level of a token
 const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
@@ -142,7 +104,6 @@ const convertAlchemyToTokenHolding = (
   
   // Add risk assessment
   holding.riskLevel = assessRiskLevel(holding)
-  holding.isHidden = shouldHideToken(holding)
   
   return holding
 }
@@ -152,6 +113,7 @@ export function usePortfolio(): PortfolioData {
   const { caipNetwork } = useAppKitNetwork()
   
   const [error, setError] = useState<string | null>(null)
+  const [lastTokenCount, setLastTokenCount] = useState<number>(0)
 
   // Define chains to fetch data from
   const supportedChainIds = [1, 42161, 8453, 137, 10, 43114] // Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche
@@ -162,8 +124,8 @@ export function usePortfolio(): PortfolioData {
       queryKey: ['tokenBalances', chainId, address],
       queryFn: () => fetchTokenBalancesForChain(chainId, address || ''),
       enabled: !!address && isConnected,
-      staleTime: 30000, // Consider data fresh for 30 seconds
-      gcTime: 5 * 60 * 1000, // Keep in garbage collection for 5 minutes
+      staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // Keep in garbage collection for 10 minutes
       retry: 2
     }))
   })
@@ -178,32 +140,42 @@ export function usePortfolio(): PortfolioData {
 
   // Get unique token symbols for price fetching
   const uniqueSymbols = Array.from(new Set(alchemyHoldings.map(h => h.token.symbol)))
+  
+  // Check if token list has changed
+  const tokenCountChanged = uniqueSymbols.length !== lastTokenCount
+  if (tokenCountChanged) {
+    console.log(`🔄 Token count changed: ${lastTokenCount} -> ${uniqueSymbols.length}`)
+    setLastTokenCount(uniqueSymbols.length)
+  }
 
   // Type for price data
   type PriceData = Record<string, { price: number, change24h: number }>
 
-  // Fetch prices using React Query
-  const priceQuery = useQuery<PriceData, Error>({
-    queryKey: ['tokenPrices', uniqueSymbols.join(',')],
-    queryFn: () => fetchTokenPrices(uniqueSymbols),
-    enabled: uniqueSymbols.length > 0,
-    staleTime: 10000, // Consider price data fresh for 10 seconds
-    gcTime: 30000, // Keep in garbage collection for 30 seconds
-    retry: 2
+  // Fetch prices using Alchemy API with individual token caching
+  const priceQueries = useQueries({
+    queries: uniqueSymbols.map(symbol => ({
+      queryKey: ['alchemyPrice', symbol],
+      queryFn: () => fetchAlchemyPriceForSymbol(symbol),
+      enabled: !!symbol && uniqueSymbols.length > 0,
+      staleTime: 2 * 60 * 1000, // Consider price data fresh for 2 minutes
+      gcTime: 5 * 60 * 1000, // Keep in garbage collection for 5 minutes
+      retry: 2
+    }))
   })
 
   // Convert Alchemy holdings to TokenHoldings with price data
   const allHoldings: TokenHolding[] = alchemyHoldings.map(holding => {
-    const priceData = (priceQuery.data?.[holding.token.symbol]) || { price: 0, change24h: 0 }
+    const symbolIndex = uniqueSymbols.indexOf(holding.token.symbol)
+    const priceQuery = priceQueries[symbolIndex]
+    const priceData = priceQuery?.data || { price: 0, change24h: 0 }
     return convertAlchemyToTokenHolding(holding, priceData)
   })
 
   // Sort by value descending
   allHoldings.sort((a, b) => b.valueUSD - a.valueUSD)
 
-  // Filter out hidden tokens
-  const filteredHoldings = allHoldings.filter(holding => !shouldHideToken(holding))
-  const filteredHiddenHoldings = allHoldings.filter(holding => shouldHideToken(holding))
+  // All holdings are now visible (no hidden tokens)
+  const filteredHoldings = allHoldings
 
   // Calculate portfolio stats
   const totalValueUSD = filteredHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
@@ -220,24 +192,29 @@ export function usePortfolio(): PortfolioData {
     change24h: parseFloat(formatChange24h(totalChange24h)),
     changePercent: parseFloat(formatPercentage(changePercent)),
     totalAssets: allHoldings.length,
-    activeChains: uniqueChains.size,
-    hiddenAssets: filteredHiddenHoldings.length,
-    hiddenValue: filteredHiddenHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
+    activeChains: uniqueChains.size
   }
 
-  const isLoading = chainQueries.some(query => query.isLoading) || priceQuery.isLoading
+  const isLoading = chainQueries.some(query => query.isLoading) || priceQueries.some(query => query.isLoading)
 
   return {
     stats,
     holdings: filteredHoldings,
-    hiddenHoldings: filteredHiddenHoldings,
     isLoading,
     error,
     refresh: async () => {
+      console.log('🔄 Refreshing all portfolio data...')
       await Promise.all([
         ...chainQueries.map(query => query.refetch()),
-        priceQuery.refetch()
+        ...priceQueries.map(query => query.refetch())
       ])
+    },
+    refreshToken: async (symbol: string) => {
+      console.log(`🔄 Refreshing specific token: ${symbol}`)
+      const symbolIndex = uniqueSymbols.indexOf(symbol)
+      if (symbolIndex >= 0) {
+        await priceQueries[symbolIndex]?.refetch()
+      }
     }
   }
 } 

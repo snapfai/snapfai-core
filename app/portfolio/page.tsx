@@ -3,7 +3,7 @@
 import { useAppKitAccount, useAppKitNetwork, useWalletInfo } from '@reown/appkit/react'
 import { Button } from '@/components/ui/button'
 import { useAppKit } from '@reown/appkit/react'
-import { ArrowLeftIcon, TrendingUp, TrendingDown, Wallet, PieChart, Activity, RefreshCw, Layers, EyeOff, Eye } from 'lucide-react'
+import { ArrowLeftIcon, TrendingUp, TrendingDown, Wallet, PieChart, Activity, RefreshCw, Layers } from 'lucide-react'
 import Link from 'next/link'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,17 +21,13 @@ export default function PortfolioPage() {
   const { walletInfo } = useWalletInfo()
   const { open } = useAppKit()
   
-  const { stats: portfolioStats, holdings: tokenHoldings, hiddenHoldings, isLoading, error, refresh } = usePortfolio()
+  const { stats: portfolioStats, holdings: tokenHoldings, isLoading, error, refresh, refreshToken } = usePortfolio()
   const [selectedChain, setSelectedChain] = useState<number | 'all'>('all')
-  const [showHidden, setShowHidden] = useState(false)
+  const [showUnsupported, setShowUnsupported] = useState(false)
 
   const filteredHoldings = selectedChain === 'all' 
     ? tokenHoldings 
     : tokenHoldings.filter(holding => holding.chainId === selectedChain)
-
-  const filteredHiddenHoldings = selectedChain === 'all' 
-    ? hiddenHoldings 
-    : hiddenHoldings.filter(holding => holding.chainId === selectedChain)
 
   const getChainBadgeColor = (chainId: number) => {
     const colors: Record<number, string> = {
@@ -46,14 +42,12 @@ export default function PortfolioPage() {
   }
 
   const getUniqueChains = () => {
-    // Combine visible and hidden holdings for chain filtering
-    const allHoldings = [...tokenHoldings, ...hiddenHoldings]
-    const chains = new Set(allHoldings.map(holding => holding.chainId))
+    // Get unique chains from token holdings
+    const chains = new Set(tokenHoldings.map(holding => holding.chainId))
     return Array.from(chains).map(chainId => ({
       id: chainId,
-      name: allHoldings.find(h => h.chainId === chainId)?.chain || '',
-      count: tokenHoldings.filter(h => h.chainId === chainId).length,
-      hiddenCount: hiddenHoldings.filter(h => h.chainId === chainId).length
+      name: tokenHoldings.find(h => h.chainId === chainId)?.chain || '',
+      count: tokenHoldings.filter(h => h.chainId === chainId).length
     }))
   }
 
@@ -159,22 +153,22 @@ export default function PortfolioPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  <Button
+                                    <Button
                     variant={selectedChain === 'all' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setSelectedChain('all')}
                   >
-                    All Networks ({tokenHoldings.length + hiddenHoldings.length})
+                    All Networks ({tokenHoldings.length})
                   </Button>
                   {getUniqueChains().map(chain => (
-                                          <Button
-                        key={chain.id}
-                        variant={selectedChain === chain.id ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedChain(chain.id)}
-                      >
-                        {chain.name} ({chain.count + chain.hiddenCount})
-                      </Button>
+                    <Button
+                      key={chain.id}
+                      variant={selectedChain === chain.id ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedChain(chain.id)}
+                    >
+                      {chain.name} ({chain.count})
+                    </Button>
                   ))}
                 </div>
               </CardContent>
@@ -183,10 +177,21 @@ export default function PortfolioPage() {
             {/* Token Holdings */}
             <Card>
               <CardHeader>
-                <CardTitle>Token Holdings ({filteredHoldings.length})</CardTitle>
-                <CardDescription>
-                  Your valuable token balances across all supported networks
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Token Holdings ({filteredHoldings.length})</CardTitle>
+                    <CardDescription>
+                      Your valuable token balances across all supported networks
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUnsupported(!showUnsupported)}
+                  >
+                    {showUnsupported ? 'Hide' : 'Show'} Unsupported Tokens
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -236,12 +241,25 @@ export default function PortfolioPage() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">{holding.value}</p>
-                          {holding.change24h !== undefined && (
-                            <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => refreshToken(holding.token.symbol)}
+                              className="h-6 w-6 p-0 hover:bg-muted"
+                              title={`Refresh ${holding.token.symbol} price`}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                            </Button>
+                            <div>
+                              <p className="font-medium">{holding.value}</p>
+                              {holding.change24h !== undefined && (
+                                <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                  {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -250,88 +268,7 @@ export default function PortfolioPage() {
               </CardContent>
             </Card>
 
-            {/* Hidden Tokens Section */}
-            {portfolioStats.hiddenAssets > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        <span>Hidden Tokens</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {filteredHiddenHoldings.length}
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription>
-                        Low-value and high-risk tokens (excluded from portfolio value)
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowHidden(!showHidden)}
-                    >
-                      {showHidden ? (
-                        <>
-                          <EyeOff className="h-4 w-4 mr-2" />
-                          Hide Hidden
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-4 w-4 mr-2" />
-                          Show Hidden
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardHeader>
-                {showHidden && (
-                  <CardContent>
-                    <div className="space-y-3">
-                      {filteredHiddenHoldings.map((holding, index) => (
-                        <div key={index} className="flex items-center gap-4 p-3 border rounded-lg bg-muted/30 opacity-75">
-                          <div className="relative">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={holding.token.logoURI} alt={holding.token.symbol} />
-                              <AvatarFallback className="text-xs">{holding.token.symbol.slice(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <Badge 
-                              className={`absolute -bottom-1 -right-1 text-xs px-1 ${getChainBadgeColor(holding.chainId)}`}
-                            >
-                              {holding.chain.slice(0, 3)}
-                            </Badge>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-medium text-sm">{holding.token.symbol}</h3>
-                              <span className="text-xs text-muted-foreground">{holding.token.name}</span>
-                              {holding.riskLevel && (
-                                <Badge 
-                                  variant={holding.riskLevel === 'high' ? 'destructive' : holding.riskLevel === 'medium' ? 'secondary' : 'default'}
-                                  className="text-xs"
-                                >
-                                  {holding.riskLevel} risk
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {holding.balance} {holding.token.symbol} on {holding.chain}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{holding.value}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {holding.price === 0 ? 'No price' : `$${holding.price?.toFixed(6) || '0.000000'}`}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            )}
+
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">

@@ -1,5 +1,5 @@
 import { Alchemy, Network, TokenBalanceType } from 'alchemy-sdk'
-import { type TokenConfig, getNativeToken } from './tokens'
+import { type TokenConfig, getNativeToken, isTokenSupported, findTokenByAddress } from './tokens'
 import { SUPPORTED_CHAINS } from './chains'
 import { 
   findSpecialTokenByAddress, 
@@ -87,6 +87,13 @@ export const fetchTokenBalancesForChain = async (
           const balanceInEth = parseFloat(nativeBalance.toString()) / Math.pow(10, 18)
           console.log(`Native token ${nativeToken.symbol}: balance=${balanceInEth}`)
           
+          // Try to get logo from our supported tokens list first
+          const supportedNativeToken = findTokenByAddress(nativeToken.address, chainId);
+          if (supportedNativeToken && supportedNativeToken.logoURI) {
+            nativeToken.logoURI = supportedNativeToken.logoURI;
+            console.log(`🎨 Using logo from tokens.ts for native token ${nativeToken.symbol}: ${nativeToken.logoURI}`);
+          }
+          
           nativeTokenHolding = {
             token: nativeToken,
             balance: balanceInEth.toFixed(6),
@@ -148,6 +155,7 @@ export const fetchTokenBalancesForChain = async (
     const holdings: AlchemyTokenHolding[] = []
 
     console.log(`Found ${nonZeroBalances.length} tokens with non-zero balances`)
+    console.log('Token addresses found:', nonZeroBalances.map(t => t.contractAddress).slice(0, 10))
     
     // Process each token with non-zero balance (increased limit to catch more tokens)
     for (const tokenBalance of nonZeroBalances.slice(0, 200)) {
@@ -168,6 +176,19 @@ export const fetchTokenBalancesForChain = async (
           balance = balanceWei / Math.pow(10, specialToken.decimals)
           
           console.log(`Special token ${specialToken.symbol}: balance=${balance}, decimals=${specialToken.decimals}`)
+          
+          // Try to get logo from our supported tokens list first
+          const supportedToken = findTokenByAddress(specialToken.address, chainId);
+          if (supportedToken && supportedToken.logoURI) {
+            token.logoURI = supportedToken.logoURI;
+            console.log(`🎨 Using logo from tokens.ts for special token ${token.symbol}: ${token.logoURI}`);
+          }
+          
+          // Check if special token is supported
+          if (!isTokenSupported(specialToken.symbol, chainId) && !isTokenSupported(specialToken.address, chainId)) {
+            console.log(`Skipping unsupported special token: ${specialToken.symbol} (${specialToken.address}) on chain ${chainId}`)
+            continue
+          }
         } else {
           // Get token metadata from Alchemy for regular tokens
           const metadata = await alchemy.core.getTokenMetadata(tokenBalance.contractAddress)
@@ -193,10 +214,37 @@ export const fetchTokenBalancesForChain = async (
             address: tokenBalance.contractAddress,
             logoURI: metadata.logo as string | undefined
           }
+          
+          // Try to get logo from our supported tokens list first
+          const supportedToken = findTokenByAddress(tokenBalance.contractAddress, chainId);
+          if (supportedToken && supportedToken.logoURI) {
+            token.logoURI = supportedToken.logoURI;
+            console.log(`🎨 Using logo from tokens.ts for ${token.symbol}: ${token.logoURI}`);
+          }
         }
         
-        // Skip very small balances (lowered threshold to catch more tokens)
+        // Skip very small balances and tokens with no real value
         if (balance < 0.000000001) continue
+
+        // Filter out spam/airdrop tokens and tokens with suspicious names
+        const isSpamToken = isSpamOrAirdropToken(token.symbol, token.name);
+        const isSupported = isTokenSupported(token.symbol, chainId) || isTokenSupported(token.address, chainId);
+        
+        // Skip tokens with suspiciously large balances (often spam)
+        if (balance > 1000000000 && !isSupported) {
+          console.log(`🚫 Skipping token with suspiciously large balance: ${token.symbol} (${balance})`)
+          continue
+        }
+        
+        if (isSpamToken) {
+          console.log(`🚫 Skipping spam/airdrop token: ${token.symbol} (${token.address}) on chain ${chainId}`)
+          continue
+        } else if (isSupported) {
+          console.log(`✅ Supported token found: ${token.symbol} (${token.address}) on chain ${chainId}`)
+        } else {
+          console.log(`🚫 Skipping unsupported token: ${token.symbol} (${token.address}) on chain ${chainId}`)
+          continue
+        }
 
         const holding: AlchemyTokenHolding = {
           token,
@@ -207,16 +255,22 @@ export const fetchTokenBalancesForChain = async (
           chainId
         }
 
+        console.log(`📊 Created holding for ${token.symbol}: balance=${balance.toFixed(6)}, address=${token.address}, supported=${isSupported}`)
         holdings.push(holding)
       } catch (error) {
         console.error(`Error processing token ${tokenBalance.contractAddress}:`, error)
       }
     }
 
-    // Add native token to holdings if it exists
+    // Add native token to holdings if it exists and is supported
     if (nativeTokenHolding) {
-      holdings.unshift(nativeTokenHolding) // Add to beginning of array
-      console.log(`Added native token ${nativeTokenHolding.token.symbol} to holdings`)
+      // Check if native token is supported
+      if (isTokenSupported(nativeTokenHolding.token.symbol, chainId) || isTokenSupported(nativeTokenHolding.token.address, chainId)) {
+        holdings.unshift(nativeTokenHolding) // Add to beginning of array
+        console.log(`Added native token ${nativeTokenHolding.token.symbol} to holdings`)
+      } else {
+        console.log(`Skipping unsupported native token: ${nativeTokenHolding.token.symbol} on chain ${chainId}`)
+      }
     }
 
     return holdings
@@ -224,6 +278,56 @@ export const fetchTokenBalancesForChain = async (
     console.error(`Error fetching balances for chain ${chainId}:`, error)
     return []
   }
+}
+
+// Helper function to detect spam/airdrop tokens
+function isSpamOrAirdropToken(symbol: string, name: string): boolean {
+  const spamKeywords = [
+    'airdrop', 'claim', 'rewards', 'free', 'spam', 'scam', 'fake',
+    'phishing', 'virus', 'malware', 'honeypot', 'test', 'meme',
+    'eligible', 'reward', 'prize', 'bonus', 'gift', 'giveaway',
+    '🚀', '💎', '🔥', '⭐', '🎉', '💰', '💸'
+  ];
+  
+  const suspiciousPatterns = [
+    /claim.*airdrop/i,
+    /rewards?\..*\.com/i,
+    /free.*token/i,
+    /test.*token/i,
+    /meme.*token/i,
+    /.*\s+at\s+.*\.(com|org|net|io)/i,
+    /.*\s+!\s+eligible/i,
+    /.*\s+\$\s+reward/i,
+    /reward\s+at\s+.*\.com/i,
+    /.*coin\s*$/i, // Ends with "coin"
+    /^[0-9]+\s*\$\s+reward/i, // Starts with number + $ + reward
+  ];
+  
+  const combinedText = `${symbol} ${name}`.toLowerCase();
+  
+  // Check for spam keywords
+  const hasSpamKeywords = spamKeywords.some(keyword => 
+    combinedText.includes(keyword.toLowerCase())
+  );
+  
+  // Check for suspicious patterns
+  const hasSuspiciousPattern = suspiciousPatterns.some(pattern => 
+    pattern.test(combinedText)
+  );
+  
+  // Check for very long names (often spam)
+  const hasLongName = name.length > 50 || symbol.length > 20;
+  
+  // Check for emoji tokens
+  const hasEmojis = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(combinedText);
+  
+  // Check for website references in token names
+  const hasWebsiteReference = /\.(com|org|net|io|bar)/i.test(combinedText);
+  
+  // Check for suspicious capitalization patterns
+  const hasSuspiciousCaps = /[A-Z]{3,}/.test(symbol) && symbol.length > 5;
+  
+  return hasSpamKeywords || hasSuspiciousPattern || hasLongName || hasEmojis || hasWebsiteReference || hasSuspiciousCaps;
 }
 
 // Helper function to convert symbol to address
@@ -249,6 +353,120 @@ function symbolToAddress(symbol: string): string {
 }
 
 // Unified fetchTokenPrices function that handles both TokenHolding[] and string[]
+// New function to fetch prices using Alchemy API
+// Individual token price fetching for granular caching
+export async function fetchAlchemyPriceForSymbol(
+  symbol: string
+): Promise<{ price: number; change24h: number }> {
+  try {
+    console.log(`🔍 Fetching price for ${symbol} using Alchemy API`);
+    
+    // Create Alchemy instance for Ethereum mainnet
+    const alchemy = createAlchemyInstance(1);
+    if (!alchemy) {
+      console.warn('❌ Alchemy instance not available for price fetching');
+      return { price: 0, change24h: 0 };
+    }
+    
+    // Try to get token address first
+    const tokenAddress = symbolToAddress(symbol);
+    
+    if (tokenAddress && tokenAddress !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+      // Get token metadata from Alchemy
+      const metadata = await alchemy.core.getTokenMetadata(tokenAddress);
+      
+      if (metadata) {
+        // Try to get price from metadata (if available in paid tier)
+        // For free tier, we'll use fallback prices
+        const price = await getFallbackPrice(symbol);
+        const change24h = 0; // Alchemy doesn't provide 24h change in free tier
+        
+        if (price > 0) {
+          console.log(`✅ Got price for ${symbol}: $${price}`);
+        } else {
+          console.log(`⚠️ No price data for ${symbol}`);
+        }
+        
+        return { price, change24h };
+      } else {
+        console.log(`⚠️ No metadata for ${symbol}`);
+        return { price: 0, change24h: 0 };
+      }
+    } else {
+      // For native tokens like ETH, use a different approach
+      const price = await getFallbackPrice(symbol);
+      return { price, change24h: 0 };
+    }
+    
+  } catch (error) {
+    console.warn(`❌ Error fetching price for ${symbol}:`, error);
+    return { price: 0, change24h: 0 };
+  }
+}
+
+export async function fetchAlchemyPrices(
+  symbols: string[]
+): Promise<Record<string, { price: number; change24h: number }>> {
+  try {
+    console.log('🔍 Fetching prices using Alchemy API for:', symbols);
+    
+    const prices: Record<string, { price: number; change24h: number }> = {};
+    
+    // Create Alchemy instance for Ethereum mainnet
+    const alchemy = createAlchemyInstance(1);
+    if (!alchemy) {
+      console.warn('❌ Alchemy instance not available for price fetching');
+      return {};
+    }
+    
+    // Fetch prices for each symbol
+    for (const symbol of symbols) {
+      try {
+        // Try to get token address first
+        const tokenAddress = symbolToAddress(symbol);
+        
+        if (tokenAddress && tokenAddress !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+          // Get token metadata from Alchemy
+          const metadata = await alchemy.core.getTokenMetadata(tokenAddress);
+          
+          if (metadata) {
+            // Try to get price from metadata (if available in paid tier)
+            // For free tier, we'll use fallback prices
+            const price = await getFallbackPrice(symbol);
+            const change24h = 0; // Alchemy doesn't provide 24h change in free tier
+            
+            prices[symbol] = { price, change24h };
+            
+            if (price > 0) {
+              console.log(`✅ Got price for ${symbol}: $${price}`);
+            } else {
+              console.log(`⚠️ No price data for ${symbol}`);
+            }
+          } else {
+            console.log(`⚠️ No metadata for ${symbol}`);
+            prices[symbol] = { price: 0, change24h: 0 };
+          }
+        } else {
+          // For native tokens like ETH, use a different approach
+          const price = await getFallbackPrice(symbol);
+          prices[symbol] = { price, change24h: 0 };
+        }
+        
+      } catch (error) {
+        console.warn(`❌ Error fetching price for ${symbol}:`, error);
+        prices[symbol] = { price: 0, change24h: 0 };
+      }
+    }
+    
+    console.log(`📊 Fetched prices for ${Object.keys(prices).length} tokens`);
+    return prices;
+    
+  } catch (error) {
+    console.error('❌ Error fetching Alchemy prices:', error);
+    return {};
+  }
+}
+
 export async function fetchTokenPrices(
   input: TokenHolding[] | string[]
 ): Promise<Record<string, { price: number; change24h: number }>> {
@@ -565,7 +783,16 @@ const getFallbackPrice = (symbol: string): number => {
     'SNX': 3.00,
     'SUSHI': 1.20,
     'MATIC': 0.85,
-    'AVAX': 25.50
+    'AVAX': 25.50,
+    // Avalanche tokens
+    'PNG': 0.15,
+    'JOE': 0.25,
+    'DYP': 0.05,
+    'WAVAX': 25.50,
+    // Other common tokens
+    'ARB': 1.2,
+    'OP': 2.5,
+    'BASE': 0.0001
   }
   
   return fallbackPrices[symbol.toUpperCase()] || 0
@@ -583,6 +810,7 @@ const getFallbackPrices = (symbols: string[]): Record<string, { price: number, c
     'MATIC': { price: 0.9, change24h: -1.5 },
     'POL': { price: 0.9, change24h: -1.5 },
     'AVAX': { price: 35, change24h: 1.8 },
+    'WAVAX': { price: 35, change24h: 1.8 },
     'LINK': { price: 15, change24h: 4.2 },
     'UNI': { price: 8.5, change24h: -0.8 },
     'AAVE': { price: 125, change24h: 5.1 },
@@ -591,7 +819,15 @@ const getFallbackPrices = (symbols: string[]): Record<string, { price: number, c
     'MKR': { price: 1200, change24h: -0.5 },
     'YFI': { price: 6500, change24h: 4.8 },
     'SNX': { price: 2.5, change24h: -1.2 },
-    'SUSHI': { price: 0.8, change24h: 0.3 }
+    'SUSHI': { price: 0.8, change24h: 0.3 },
+    // Avalanche tokens
+    'PNG': { price: 0.15, change24h: 2.1 },
+    'JOE': { price: 0.25, change24h: -1.5 },
+    'DYP': { price: 0.05, change24h: 0.8 },
+    // Other common tokens
+    'ARB': { price: 1.2, change24h: 1.5 },
+    'OP': { price: 2.5, change24h: -0.8 },
+    'BASE': { price: 0.0001, change24h: 0.0 }
   }
   
   const result: Record<string, { price: number, change24h: number }> = {}
