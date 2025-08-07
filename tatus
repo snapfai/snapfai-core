@@ -1,8 +1,5 @@
-  main[m
-* [32mmvp[m
-  [31mremotes/origin/HEAD[m -> origin/main
-  [31mremotes/origin/bridge[m
-  [31mremotes/origin/feature/thancheck[m
-  [31mremotes/origin/frank[m
-  [31mremotes/origin/main[m
-  [31mremotes/origin/mvp[m
+[33m5b38430[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtest-portfolio[m[33m)[m fix eth not in port
+[33md0dca28[m feat: optimize portfolio page performance and fix price fetching
+[33m11c4949[m Merge origin/portfolio: Resolve conflicts in portfolio components
+[33mf261b4e[m feat: Improve portfolio token handling and UI
+[33ma17dc01[m Complete merge from main branch - integrate latest changes
