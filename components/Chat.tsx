@@ -8,7 +8,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Send, Eye } from 'lucide-react';
+import { Loader2, Send, Eye, Wallet } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import SwapConfirmation from './SwapConfirmation';
 import { v4 as uuid } from 'uuid';
 import ReactMarkdown from 'react-markdown';
@@ -16,19 +17,223 @@ import { useAppKitAccount, useAppKitNetwork, useAppKitBalance, useWalletInfo, us
 import WalletSummary from './WalletSummary';
 import { useSendTransaction, useWalletClient } from 'wagmi';
 import { parseEther } from 'viem';
+import { usePortfolio } from '@/hooks/usePortfolio';
 // Import types for better TypeScript support
 import type { Hex } from 'viem';
 import { getChainId, getChainByName, extractChainIdFromCAIP, getNativeTokenSymbol } from '@/lib/chains';
 import { resolveToken, getTokensForChain } from '@/lib/tokens';
 import { resolveTokenStrict } from '@/lib/token-resolver';
 import SwapSupportedTokensModal from './SwapSupportedTokensModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 
 // Add rehype-raw to support HTML in markdown for links
 import rehypeRaw from 'rehype-raw';
 
+// Floating Smart Suggestions Component (Grok-style)
+const SmartSuggestions = ({ 
+  isConnected, 
+  hasPortfolio, 
+  onSuggestionClick, 
+  visibleSuggestions,
+  onDismissSuggestion
+}: { 
+  isConnected: boolean, 
+  hasPortfolio: boolean, 
+  onSuggestionClick: (text: string, index: number) => void,
+  visibleSuggestions: number[],
+  onDismissSuggestion: (index: number) => void
+}) => {
+  const portfolioSuggestions = [
+    { icon: "📊", text: "Analyze my portfolio" },
+    { icon: "⚖️", text: "Should I rebalance my portfolio?" },
+    { icon: "💰", text: "Find yield opportunities for my portfolio" },
+    { icon: "⚠️", text: "What are the risks in my portfolio?" }
+  ];
+
+  const basicSuggestions = [
+    { icon: "💰", text: "What's the price of ETH?" },
+    { icon: "🔄", text: "How do I swap tokens?" },
+    { icon: "📈", text: "What's happening in DeFi today?" },
+    { icon: "🔗", text: "Explain different blockchain networks" }
+  ];
+
+  const allSuggestions = isConnected && hasPortfolio ? portfolioSuggestions : basicSuggestions;
+  
+  // Only show suggestions that are still visible (not dismissed)
+  const activeSuggestions = allSuggestions
+    .map((suggestion, index) => ({ ...suggestion, originalIndex: index }))
+    .filter((_, index) => visibleSuggestions.includes(index))
+    .slice(0, 2); // Only show 2 at a time
+
+  if (activeSuggestions.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 right-0 mb-2 px-3 sm:px-4">
+      <div className="flex flex-col sm:flex-row gap-2 justify-center">
+        {activeSuggestions.map((suggestion, displayIndex) => (
+          <div
+            key={suggestion.originalIndex}
+            className="group flex items-center gap-2 bg-background border border-border rounded-full px-4 py-2 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] w-fit"
+          >
+            <span className="text-sm">{suggestion.icon}</span>
+            <button
+              onClick={() => onSuggestionClick(suggestion.text, suggestion.originalIndex)}
+              className="text-sm text-foreground hover:text-primary transition-colors whitespace-nowrap"
+            >
+              {suggestion.text}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDismissSuggestion(suggestion.originalIndex);
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded-full ml-1"
+            >
+              <span className="text-xs text-muted-foreground">×</span>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Portfolio Modal Component
+const PortfolioModal = ({ 
+  open, 
+  onClose, 
+  holdings, 
+  hiddenHoldings, 
+  stats 
+}: { 
+  open: boolean, 
+  onClose: () => void, 
+  holdings: any[], 
+  hiddenHoldings: any[], 
+  stats: any 
+}) => {
+  const getChainBadgeColor = (chainId: number) => {
+    const colors: Record<number, string> = {
+      1: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      42161: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      8453: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      137: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+      43114: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      10: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200'
+    }
+    return colors[chainId] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Portfolio Overview
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          {/* Portfolio Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className="text-lg font-bold">{stats?.totalValue || '$0.00'}</div>
+              <div className="text-xs text-muted-foreground">Total Value</div>
+            </div>
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className="text-lg font-bold">{stats?.totalAssets || 0}</div>
+              <div className="text-xs text-muted-foreground">Assets</div>
+            </div>
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className="text-lg font-bold">{stats?.activeChains || 0}</div>
+              <div className="text-xs text-muted-foreground">Chains</div>
+            </div>
+            <div className="text-center p-3 bg-muted rounded-lg">
+              <div className={`text-lg font-bold ${stats?.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {stats?.changePercent ? `${stats.changePercent >= 0 ? '+' : ''}${stats.changePercent.toFixed(2)}%` : '0%'}
+              </div>
+              <div className="text-xs text-muted-foreground">24h Change</div>
+            </div>
+          </div>
+
+          {/* Holdings List */}
+          <div>
+            <h3 className="text-sm font-medium mb-3">Your Holdings ({holdings.length})</h3>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {holdings.map((holding, index) => (
+                <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50">
+                  <div className="relative">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={holding.token.logoURI} alt={holding.token.symbol} />
+                      <AvatarFallback className="text-xs">{holding.token.symbol.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <Badge 
+                      className={`absolute -bottom-1 -right-1 text-xs px-1 ${getChainBadgeColor(holding.chainId)}`}
+                    >
+                      {holding.chain.slice(0, 3)}
+                    </Badge>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{holding.token.symbol}</span>
+                      <span className="text-xs text-muted-foreground">{holding.token.name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {holding.balance} tokens on {holding.chain}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-medium text-sm">{holding.value}</div>
+                    {holding.change24h !== undefined && (
+                      <div className={`text-xs ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Hidden Holdings */}
+          {hiddenHoldings && hiddenHoldings.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-3 text-muted-foreground">
+                Hidden Holdings ({hiddenHoldings.length})
+                <span className="ml-2 text-xs">(Low value or unsupported tokens)</span>
+              </h3>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {hiddenHoldings.slice(0, 5).map((holding, index) => (
+                  <div key={index} className="flex items-center gap-3 p-2 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={holding.token.logoURI} alt={holding.token.symbol} />
+                      <AvatarFallback className="text-xs">{holding.token.symbol.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <span className="text-xs font-medium">{holding.token.symbol}</span>
+                      <div className="text-xs text-muted-foreground">{holding.balance} on {holding.chain}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{holding.value || '$0.00'}</div>
+                  </div>
+                ))}
+                {hiddenHoldings.length > 5 && (
+                  <div className="text-xs text-muted-foreground text-center py-2">
+                    +{hiddenHoldings.length - 5} more hidden tokens
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Custom link component to open external links in new tab or open supported tokens modal
-const CustomLink = ({ href, children, setShowTokensModal, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { setShowTokensModal?: (open: boolean) => void }) => {
+const CustomLink = ({ href, children, setShowTokensModal, setShowPortfolioModal, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { setShowTokensModal?: (open: boolean) => void, setShowPortfolioModal?: (open: boolean) => void }) => {
   if (href === '#supported-tokens' && setShowTokensModal) {
     return (
       <a 
@@ -39,6 +244,21 @@ const CustomLink = ({ href, children, setShowTokensModal, ...props }: React.Anch
           setShowTokensModal(true);
         }}
         className="text-blue-600 hover:text-blue-800 underline"
+      >
+        {children}
+      </a>
+    );
+  }
+  if (href === '#view-portfolio' && setShowPortfolioModal) {
+    return (
+      <a 
+        {...props}
+        href={href}
+        onClick={e => {
+          e.preventDefault();
+          setShowPortfolioModal(true);
+        }}
+        className="text-blue-600 hover:text-blue-800 underline font-medium"
       >
         {children}
       </a>
@@ -113,41 +333,30 @@ const Chat = () => {
     {
       id: uuid(),
       role: 'assistant',
-      content: `# Welcome to SnapFAI
+      content: `# Welcome to SnapFAI ✨
 
-**Your AI-Powered DeFi Assistant**
+**Your Intelligent DeFi Companion**
 
-I can help you navigate DeFi through natural language conversation.
+I'm here to revolutionize how you interact with decentralized finance. Think of me as your personal DeFi advisor who understands your complete portfolio and provides intelligent, personalized guidance.
 
-## What I Can Do Right Now
+## 🚀 **Why I'm Different**
 
-**✅ Token Swaps**
-- Swap tokens across Ethereum, Arbitrum, Base, Avalanche, Optimism
-- Get real-time quotes from multiple DEXs
-- Execute swaps directly through your wallet
+**🧠 True Portfolio Intelligence** • I analyze your complete multi-chain holdings in real-time  
+**⚡ Smart Risk Management** • Personalized warnings and optimization suggestions  
+**📊 Context-Aware Trading** • Every recommendation considers your specific situation  
+**🔍 Live Market Intelligence** • Real-time insights filtered by your interests  
 
-**✅ Market Information**
-- Get current token prices and market data
-- Answer questions about DeFi protocols
-- Provide real-time insights with web search
+## 💫 **The Experience Awaits**
 
-## How to Use SnapFAI
+**Connect your wallet** and watch as I transform into your personal DeFi advisor, understanding every aspect of your portfolio across Ethereum, Arbitrum, Base, Avalanche, Optimism, and Polygon.
 
-Simply tell me what you want to do in plain language:
+**Or start exploring** with live market data, DeFi education, and the latest trends - no wallet required.
 
-**Swap Examples:**
-- "Swap 500 USDT to ETH on Arbitrum"
-- "What's the price of 1000 USDC in ETH?"
-- "Swap 0.1 ETH to USDC"
+---
 
-**Information Examples:**
-- "What's the current price of ETH?"
-- "Tell me about Uniswap"
-- "What are the gas fees on Ethereum right now?"
+**🎯 Ready to begin?** Notice the smart suggestions above the input? They're already personalizing based on your connection status.
 
-**Pro tip:** Connect your wallet for the best experience. I'll detect your network and default to it for swaps.
-
-Ready to get started? Just type what you'd like to do!`,
+*The future of DeFi interaction starts here.*`,
       timestamp: new Date()
     }
   ]);
@@ -164,6 +373,43 @@ Ready to get started? Just type what you'd like to do!`,
   });
   // Store the last transaction data for user requests
   const [lastTransactionData, setLastTransactionData] = useState<any>(null);
+  
+  // Smart suggestions state - track which suggestions are visible
+  const [showSmartSuggestions, setShowSmartSuggestions] = useState(true);
+  const [visibleSuggestions, setVisibleSuggestions] = useState<number[]>([0, 1]); // Show first 2 by default
+  
+  // Portfolio modal state
+  const [showPortfolioModal, setShowPortfolioModal] = useState(false);
+  
+  // Handler for smart suggestion clicks
+  const handleSuggestionClick = (suggestionText: string, index: number) => {
+    setValue('message', suggestionText, { shouldValidate: true });
+    // Only hide the clicked suggestion
+    setVisibleSuggestions(prev => prev.filter(i => i !== index));
+    // Focus textarea
+    const textarea = document.querySelector('textarea');
+    if (textarea) {
+      textarea.focus();
+    }
+  };
+  
+  // Handler for dismissing individual suggestions
+  const handleDismissSuggestion = (index: number) => {
+    setVisibleSuggestions(prev => {
+      const filtered = prev.filter(i => i !== index);
+      // If we have fewer than 2 visible, try to add the next one
+      if (filtered.length < 2) {
+        const maxSuggestions = 4; // Total suggestions available
+        for (let i = 0; i < maxSuggestions; i++) {
+          if (!filtered.includes(i) && !prev.includes(i)) {
+            filtered.push(i);
+            break;
+          }
+        }
+      }
+      return filtered;
+    });
+  };
   
   // Cache quote data to prevent duplicate API calls during network switching
   const [cachedQuoteData, setCachedQuoteData] = useState<{
@@ -190,6 +436,17 @@ Ready to get started? Just type what you'd like to do!`,
   const { fetchBalance } = useAppKitBalance()
   // Get AppKit functions
   const appKit = useAppKit();
+  
+  // Get portfolio information
+  const { holdings: portfolioHoldings, hiddenHoldings: portfolioHiddenHoldings, stats: portfolioStats, isLoading: portfolioLoading } = usePortfolio();
+  
+  // Reset suggestions when portfolio status changes
+  useEffect(() => {
+    if (messages.length <= 2) {
+      setShowSmartSuggestions(true);
+      setVisibleSuggestions([0, 1]); // Reset to show first 2 suggestions
+    }
+  }, [isConnected, portfolioHoldings?.length, messages.length]);
   
   // Wallet transaction hooks
   const { data: walletClient } = useWalletClient();
@@ -835,6 +1092,11 @@ You can click the buttons below or simply type "yes" or "no":`,
     const userMessage = data.message.trim();
     if (!userMessage) return;
     
+    // Hide smart suggestions when user sends a message (but keep individual state)
+    if (messages.length >= 2) {
+      setShowSmartSuggestions(false);
+    }
+    
     // Add user message to the chat
     addMessage('user', userMessage);
     
@@ -1016,7 +1278,10 @@ You can use this information to manually submit the transaction through your wal
           useLiveSearch,
           searchSources: useLiveSearch ? selectedSources : null,
           walletInfo: walletInfoData,
-          currentChain: getCurrentChainName() // Add current chain context
+          currentChain: getCurrentChainName(), // Add current chain context
+          portfolioHoldings: portfolioHoldings?.slice(0, 15) || [], // Add portfolio context (top 15 supported holdings)
+          portfolioHiddenHoldings: portfolioHiddenHoldings?.slice(0, 10) || [], // Add hidden/unsupported holdings  
+          portfolioStats: portfolioStats || null // Add portfolio stats
         })
       });
       
@@ -1300,32 +1565,109 @@ Please try again with a supported token symbol or verify the contract address.`,
     setCustomTokenInfo(null);
   };
 
-  // Generate the welcome message with current wallet info
+  // Generate personalized welcome message based on user's status
   const generateWelcomeMessage = () => {
     const currentChain = capitalize(getCurrentChainName());
-    return `# Welcome to SnapFAI! 🤖
+    const hasWallet = isConnected && address;
+    const hasPortfolio = portfolioHoldings && portfolioHoldings.length > 0;
+    const portfolioValue = portfolioStats?.totalValue || '$0.00';
+    const totalAssets = portfolioStats?.totalAssets || 0;
+    const activeChains = portfolioStats?.activeChains || 0;
+    const walletName = walletInfo?.name || 'Wallet';
+    const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
 
-I'm your AI-powered DeFi trading assistant. I can help you swap tokens, get market data, and answer questions about DeFi protocols.
+    // Personalized greeting based on user status
+    let greeting = '';
+    let personalizedContent = '';
+    
+    if (hasWallet && hasPortfolio) {
+      // Connected with portfolio
+      const topToken = portfolioHoldings[0];
+      const diversificationStatus = activeChains > 1 ? 'well-diversified across multiple chains' : 'concentrated on a single chain';
+      
+      greeting = `# Welcome back! 👋
 
-## What I Can Do Right Now
+**${walletName}** • \`${shortAddress}\` • **${currentChain}**
 
-**✅ Token Swaps**
-- Swap tokens across Ethereum, Arbitrum, Base, Avalanche, Optimism
-- Get real-time quotes from multiple DEXs
-- Execute swaps directly through your wallet
+I can see your **${portfolioValue}** portfolio with **${totalAssets} assets** across **${activeChains} ${activeChains === 1 ? 'chain' : 'chains'}**. Your largest holding is **${topToken?.token.symbol}** (${topToken?.value}), and your portfolio is ${diversificationStatus}. [View my portfolio](#view-portfolio)`;
 
-**✅ Market Information**
-- Get current token prices and market data
-- Answer questions about DeFi protocols
-- Provide real-time insights with web search
+      personalizedContent = `## 🎯 **Personalized for You**
 
-## Currently Connected: **${currentChain}**
+**📊 Portfolio Insights**
+- Your **${topToken?.token.symbol}** position: ${topToken?.value} ${topToken?.change24h !== undefined ? `(${topToken.change24h >= 0 ? '+' : ''}${topToken.change24h.toFixed(2)}% today)` : ''}
+- Portfolio performance: ${portfolioStats?.changePercent ? `${portfolioStats.changePercent >= 0 ? '+' : ''}${portfolioStats.changePercent.toFixed(2)}% (24h)` : 'Tracking...'}
+- Risk level: ${portfolioHoldings.some((h: any) => h.riskLevel === 'high') ? '🔴 High' : portfolioHoldings.some((h: any) => h.riskLevel === 'medium') ? '🟡 Medium' : '🟢 Low'}
 
-Type a token symbol (e.g. USDC, WETH) or search for a token. [View supported tokens](#supported-tokens)
+**💡 Smart Suggestions Just for You**
+${activeChains === 1 ? '- Consider diversifying across multiple chains for better risk management' : '- Great multi-chain diversification!'}
+${portfolioHoldings.some((h: any) => h.token.symbol === 'USDC' || h.token.symbol === 'USDT') ? '- I found idle stablecoins that could earn yield' : ''}
+${portfolioHoldings[0] && portfolioStats?.totalValueUSD && (parseFloat(portfolioHoldings[0].value.replace('$', '').replace(',', '')) / portfolioStats.totalValueUSD) > 0.7 ? '- Your portfolio is heavily concentrated - consider rebalancing' : ''}`;
 
-## Quick Start
-- **Swap tokens**: "Swap 100 USDC to ETH"
-- **Check prices**: "What's the price of $ETH?"`;
+    } else if (hasWallet && !hasPortfolio) {
+      // Connected but no portfolio
+      greeting = `# Welcome! 🚀
+
+**${walletName}** • \`${shortAddress}\` • **${currentChain}**
+
+I can see you're connected but don't have any tokens yet, or they're still loading. Let's get you started with DeFi!`;
+
+      personalizedContent = `## 🎯 **Perfect Timing to Start**
+
+**🌟 Your DeFi Journey Begins**
+- Connected to **${currentChain}** - you're ready to trade!
+- I'll help you make your first swap safely
+- Get real-time market insights and price alerts
+
+**💡 Recommended First Steps**
+- Check current token prices: "What's the price of ETH?"
+- Learn about swapping: "How do I swap tokens safely?"
+- Explore DeFi opportunities: "What's happening in DeFi today?"`;
+
+    } else {
+      // Not connected
+      greeting = `# Welcome to SnapFAI ✨
+
+**Your Intelligent DeFi Companion**
+
+Ready to experience the future of DeFi? I'm here to be your personal guide through decentralized finance.`;
+
+      personalizedContent = `## 🎯 **Unlock Your Personalized Experience**
+
+**🔗 Connect Your Wallet to Get**
+- Real-time portfolio analysis across 6 blockchains
+- Personalized risk assessments and rebalancing advice
+- Smart yield opportunities for your specific holdings
+- Portfolio-aware trading recommendations
+
+**💡 Or Start Exploring**
+- Get live market data and token prices
+- Learn about DeFi protocols and opportunities
+- Discover the latest trends and news`;
+    }
+
+    return `${greeting}
+
+${personalizedContent}
+
+## 🚀 **What I Can Do**
+
+**🧠 Portfolio Intelligence** • **⚡ Smart Trading** • **📊 Market Analysis** • **🔍 Live Search**
+
+${hasWallet ? `
+**Try asking me:**
+${hasPortfolio ? `- "Analyze my portfolio" - Get detailed insights about your holdings
+- "Should I rebalance?" - Personalized rebalancing recommendations  
+- "Find yield opportunities" - Discover earning potential for your tokens
+- "What are my risks?" - Portfolio-specific risk assessment` : `- "Swap 100 USDC to ETH" - Safe, guided token swapping
+- "What's the price of ETH?" - Real-time market data
+- "How do I start with DeFi?" - Beginner-friendly guidance`}` : `- "What's the price of ETH?" - Live market data
+- "Explain DeFi to me" - Learn the fundamentals
+- "What's happening in crypto today?" - Latest news and trends`}
+
+---
+*💡 Notice the smart suggestions floating above the input? They're personalized just for you!*
+
+${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experience` : ''}`;
   };
 
   // Send transaction helper function (to be used by executeSwap)
@@ -2407,7 +2749,7 @@ Just let me know what you'd prefer!`);
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div 
-                  className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-lg ${
+                  className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-lg break-words overflow-hidden ${
                     message.role === 'user' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
@@ -2420,11 +2762,11 @@ Just let me know what you'd prefer!`);
                     </div>
                   ) : (
                     <>
-                      <div className="prose dark:prose-invert prose-sm max-w-none break-words [&_h1]:text-lg [&_h1]:sm:text-xl [&_h2]:text-base [&_h2]:sm:text-lg [&_h3]:text-sm [&_h3]:sm:text-base [&_p]:text-sm [&_p]:sm:text-base [&_li]:text-sm [&_li]:sm:text-base [&_code]:text-xs [&_code]:sm:text-sm">
+                      <div className="prose dark:prose-invert prose-sm max-w-none break-words overflow-wrap-anywhere [&_h1]:text-lg [&_h1]:sm:text-xl [&_h2]:text-base [&_h2]:sm:text-lg [&_h3]:text-sm [&_h3]:sm:text-base [&_p]:text-sm [&_p]:sm:text-base [&_li]:text-sm [&_li]:sm:text-base [&_code]:text-xs [&_code]:sm:text-sm [&_pre]:overflow-x-auto [&_pre]:text-xs [&_pre]:sm:text-sm">
                         <ReactMarkdown 
                           rehypePlugins={[rehypeRaw]}
                           components={{
-                            a: (props) => <CustomLink {...props} setShowTokensModal={setShowTokensModal} />
+                            a: (props) => <CustomLink {...props} setShowTokensModal={setShowTokensModal} setShowPortfolioModal={setShowPortfolioModal} />
                           }}
                         >
                           {message.content}
@@ -2435,14 +2777,14 @@ Just let me know what you'd prefer!`);
                         <div className="flex flex-col gap-3 mt-4 mb-2">
                           <Button 
                             onClick={() => handleSwapConfirmation(true)}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
                           >
                             ✅ Yes, Execute Swap
                           </Button>
                           <Button 
                             onClick={() => handleSwapConfirmation(false)}
                             variant="outline"
-                            className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                            className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
                           >
                             ❌ No, Cancel
                           </Button>
@@ -2453,14 +2795,14 @@ Just let me know what you'd prefer!`);
                         <div className="flex flex-col gap-3 mt-4 mb-2">
                           <Button 
                             onClick={() => handleCustomTokenConfirmation(true)}
-                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
                           >
                             ⚠️ Yes, Use Custom Token
                           </Button>
                           <Button 
                             onClick={() => handleCustomTokenConfirmation(false)}
                             variant="outline"
-                            className="w-full border-gray-300 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-base"
+                            className="w-full border-gray-300 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
                           >
                             🛡️ No, Use Verified Tokens
                           </Button>
@@ -2477,7 +2819,29 @@ Just let me know what you'd prefer!`);
         </ScrollArea>
       </CardContent>
       
-      <CardFooter className="pt-2 pb-4 px-3 sm:px-4">
+      <CardFooter className="pt-2 pb-4 px-3 sm:px-4 relative">
+        {/* Floating Smart Suggestions */}
+        {(() => {
+          const shouldShow = showSmartSuggestions && messages.length <= 2 && visibleSuggestions.length > 0;
+          console.log('Smart Suggestions Debug:', {
+            showSmartSuggestions,
+            messagesLength: messages.length,
+            visibleSuggestionsLength: visibleSuggestions.length,
+            shouldShow,
+            isConnected,
+            hasPortfolio: portfolioHoldings && portfolioHoldings.length > 0
+          });
+          return shouldShow;
+        })() && (
+          <SmartSuggestions
+            isConnected={isConnected}
+            hasPortfolio={portfolioHoldings && portfolioHoldings.length > 0}
+            onSuggestionClick={handleSuggestionClick}
+            visibleSuggestions={visibleSuggestions}
+            onDismissSuggestion={handleDismissSuggestion}
+          />
+        )}
+        
         <form onSubmit={handleSubmit(handleSendMessage)} className="w-full">
           <div className="flex gap-2 items-end">
             <div className="flex-1 relative">
@@ -2573,7 +2937,7 @@ Just let me know what you'd prefer!`);
             )}
           </div>
           
-          {/* Quick Actions - Mobile: 2 buttons full width, Desktop: inline */}
+          {/* Quick Actions - Always show Price and Swap */}
           <div className="flex gap-2 mt-3 w-full">
             <Button 
               type="button" 
@@ -2626,6 +2990,14 @@ Just let me know what you'd prefer!`);
           setTokenToInsert(token.symbol);
           setShowTokensModal(false);
         }}
+      />
+      
+      <PortfolioModal
+        open={showPortfolioModal}
+        onClose={() => setShowPortfolioModal(false)}
+        holdings={portfolioHoldings || []}
+        hiddenHoldings={portfolioHiddenHoldings || []}
+        stats={portfolioStats}
       />
     </Card>
   );

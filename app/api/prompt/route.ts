@@ -367,7 +367,10 @@ export async function POST(request: NextRequest) {
       useLiveSearch, 
       searchSources,
       walletInfo, // New parameter to receive wallet information
-      currentChain // Current connected chain context
+      currentChain, // Current connected chain context
+      portfolioHoldings, // User's supported portfolio holdings
+      portfolioHiddenHoldings, // User's hidden/unsupported holdings
+      portfolioStats // User's portfolio statistics
     } = await request.json();
     
     text = promptText; // Store text for potential fallback use
@@ -461,7 +464,7 @@ export async function POST(request: NextRequest) {
     // For the MVP, we'll simulate the backend by directly calling OpenAI
     // In production, this would be calling our backend server
     
-    // Create wallet context if wallet information is provided
+    // Create wallet and portfolio context if information is provided
     let walletContext = '';
     if (walletInfo && walletInfo.address) {
       walletContext = `
@@ -472,21 +475,96 @@ USER WALLET INFORMATION:
 - Wallet Provider: ${walletInfo.provider || 'Not specified'}
 - Wallet Balance: ${walletInfo.balance || 'Not available'}
 ${walletInfo.ens ? `- ENS Name: ${walletInfo.ens}` : ''}
-
-When providing responses, you should take this wallet information into account:
-1. For swap requests, ALWAYS use ${currentChain || 'ethereum'} as the default chain unless explicitly specified otherwise
-2. Personalize responses based on the user's wallet information 
-3. For token balances or network-specific information, use the connected network (${currentChain || 'ethereum'})
-4. When suggesting actions, ensure they're compatible with the user's wallet type and network
 `;
+    }
+
+    // Add comprehensive portfolio context if available
+    let portfolioContext = '';
+    if (portfolioHoldings && portfolioHoldings.length > 0) {
+      // Calculate comprehensive portfolio stats
+      const totalSupportedHoldings = portfolioHoldings.length;
+      const totalHiddenHoldings = portfolioHiddenHoldings?.length || 0;
+      const totalAllHoldings = totalSupportedHoldings + totalHiddenHoldings;
+      
+      // Get unique chains from all holdings
+      const allChains = new Set([
+        ...portfolioHoldings.map((h: any) => h.chainId),
+        ...(portfolioHiddenHoldings || []).map((h: any) => h.chainId)
+      ]);
+      
+      portfolioContext = `
+🔍 COMPLETE MULTI-CHAIN PORTFOLIO ANALYSIS:
+
+📊 PORTFOLIO OVERVIEW:
+- Total Portfolio Value: ${portfolioStats?.totalValue || 'N/A'}
+- 24h Performance: ${portfolioStats?.changePercent ? (portfolioStats.changePercent >= 0 ? '+' : '') + portfolioStats.changePercent.toFixed(2) + '%' : 'N/A'} (${portfolioStats?.change24h ? '$' + (portfolioStats.change24h >= 0 ? '+' : '') + portfolioStats.change24h.toFixed(2) : 'N/A'})
+- Total Assets Found: ${totalAllHoldings} (${totalSupportedHoldings} supported + ${totalHiddenHoldings} unsupported)
+- Active Blockchains: ${allChains.size} chains (Multi-chain portfolio)
+- Currently Connected: ${currentChain || 'ethereum'} (but portfolio spans multiple chains)
+
+✅ SUPPORTED HOLDINGS (SAFE TO TRADE):
+${portfolioHoldings.map((holding: any, index: number) => 
+  `${index + 1}. ${holding.token.symbol} on ${holding.chain}: ${holding.balance} tokens = ${holding.value} ${holding.change24h !== undefined ? `(${holding.change24h >= 0 ? '+' : ''}${holding.change24h.toFixed(2)}% 24h)` : ''} [Risk: ${holding.riskLevel?.toUpperCase() || 'UNKNOWN'}]`
+).join('\n')}
+
+${portfolioHiddenHoldings && portfolioHiddenHoldings.length > 0 ? `
+⚠️ UNSUPPORTED/HIDDEN HOLDINGS (POTENTIALLY UNSAFE):
+${portfolioHiddenHoldings.map((holding: any, index: number) => 
+  `${index + 1}. ${holding.token.symbol} on ${holding.chain}: ${holding.balance} tokens = ${holding.value || '$0.00'} [UNSUPPORTED - May be spam, scam, or low-value token]`
+).join('\n')}
+
+🚨 UNSUPPORTED TOKEN WARNINGS:
+- These tokens are hidden because they may be: spam airdrops, scam tokens, extremely low value (<$0.10), or unverified
+- DO NOT recommend swapping these tokens - they may be honeypots or have no liquidity
+- If user asks about these tokens, warn them about potential risks
+- Only focus on SUPPORTED holdings for trading recommendations
+` : ''}
+
+🎯 PORTFOLIO INTELLIGENCE:
+- Risk Assessment: ${portfolioHoldings.some((h: any) => h.riskLevel === 'high') ? 'HIGH RISK' : portfolioHoldings.some((h: any) => h.riskLevel === 'medium') ? 'MEDIUM RISK' : 'LOW RISK'}
+- Diversification Status: ${allChains.size > 1 ? `GOOD - Spread across ${allChains.size} blockchains` : 'POOR - Concentrated on single blockchain'}
+- Largest Position: ${portfolioHoldings[0]?.token.symbol || 'N/A'} (${portfolioHoldings[0]?.value || 'N/A'}) - ${portfolioHoldings[0] ? ((parseFloat(portfolioHoldings[0].value.replace('$', '').replace(',', '')) / (portfolioStats?.totalValueUSD || 1)) * 100).toFixed(1) : '0'}% of portfolio
+- Concentration Risk: ${portfolioHoldings[0] && portfolioStats?.totalValueUSD ? ((parseFloat(portfolioHoldings[0].value.replace('$', '').replace(',', '')) / portfolioStats.totalValueUSD) > 0.7 ? 'HIGH - Over 70% in single asset' : 'MODERATE') : 'Unknown'}
+
+💡 PERSONALIZED AI GUIDANCE:
+1. CURRENT CONNECTION: User is connected to ${currentChain || 'ethereum'} but has assets across multiple chains
+2. TRADING SAFETY: Only recommend swaps using SUPPORTED holdings - never suggest trading unsupported tokens
+3. RISK MANAGEMENT: Warn about concentration if any single token >70% of portfolio value
+4. YIELD OPPORTUNITIES: Identify idle stablecoins (USDC, USDT, DAI) that could earn yield
+5. REBALANCING: Consider chain distribution and risk levels when suggesting portfolio changes
+6. MULTI-CHAIN AWARENESS: User has assets on multiple chains, not just the currently connected one
+
+🔐 IMPORTANT SAFETY RULES:
+- NEVER recommend swapping unsupported/hidden tokens
+- ALWAYS warn about risks when user asks about unsupported tokens  
+- Focus trading suggestions on verified, supported holdings only
+- Explain that unsupported tokens are hidden for safety reasons
+`;
+    }
+
+    const fullWalletContext = walletContext + portfolioContext;
+    if (fullWalletContext) {
+      const contextSuffix = `
+When providing responses, you should take this wallet and portfolio information into account:
+1. MULTI-CHAIN AWARENESS: User has assets across multiple blockchains, not just the currently connected one (${currentChain || 'ethereum'})
+2. SWAP SAFETY: For swap requests, use ${currentChain || 'ethereum'} as default chain, but ONLY suggest swapping SUPPORTED tokens
+3. PERSONALIZED ADVICE: Base all recommendations on the user's actual holdings and risk profile
+4. RISK WARNINGS: Alert about concentration risk, unsupported tokens, and dangerous trades
+5. PORTFOLIO OPTIMIZATION: Suggest rebalancing, yield opportunities, and diversification based on real data
+6. SECURITY FIRST: Never recommend trading unsupported/hidden tokens - explain they're hidden for safety
+`;
+      walletContext = fullWalletContext + contextSuffix;
     }
     
     // Define system prompt with current chain context
-    const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform. Your capabilities include:
+    const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform with COMPLETE PORTFOLIO AWARENESS. Your capabilities include:
 
-1. DeFi Swap Operations:
+1. PORTFOLIO-AWARE DeFi Operations:
+   - Analyze user's complete multi-chain portfolio (supported + unsupported holdings)
+   - Provide personalized trading advice based on actual holdings and risk levels
    - Parse swap requests by identifying tokenIn, tokenOut, amount, and chain (Ethereum/Arbitrum/Base/Avalanche/Optimism)
    - IMPORTANT: User is currently connected to ${currentChain || 'ethereum'} network - use this as the default chain when not specified
+   - ONLY recommend swapping SUPPORTED tokens - warn about unsupported ones
    - Handle protocol selection automatically
 
 2. DeFi News & Information:
