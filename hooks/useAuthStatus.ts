@@ -18,8 +18,8 @@ export default function useAuthStatus() {
     const checkAuthStatus = async () => {
       const now = Date.now()
       
-      // Prevent excessive checks - only check every 5 seconds
-      if (now - lastCheckTimestamp < 5000) {
+      // Prevent excessive checks - only check every 2 seconds, but allow immediate check on page load
+      if (now - lastCheckTimestamp < 2000 && lastCheckTimestamp > 0) {
         return
       }
       
@@ -126,8 +126,8 @@ export default function useAuthStatus() {
     // Check auth status immediately
     checkAuthStatus();
     
-    // Also check periodically, but less frequently
-    const interval = setInterval(checkAuthStatus, 10000); // Every 10 seconds instead of 2
+    // Also check periodically, but more frequently during initial load
+    const interval = setInterval(checkAuthStatus, 5000); // Every 5 seconds for better responsiveness
     
     return () => clearInterval(interval);
   }, [isConnected, address, lastCheckTimestamp])

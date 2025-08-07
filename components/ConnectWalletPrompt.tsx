@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAppKit } from '@reown/appkit/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import useAuthStatus from '@/hooks/useAuthStatus'
 export default function ConnectWalletPrompt() {
   const { open } = useAppKit()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isAuthenticated, isConnected, address } = useAuthStatus()
   const [hasTriedConnect, setHasTriedConnect] = useState(false)
   const [isWaitingForAuth, setIsWaitingForAuth] = useState(false)
@@ -36,13 +37,16 @@ export default function ConnectWalletPrompt() {
       console.log('✅ Authentication detected, preparing redirect...')
       setRedirectAttempted(true)
       
+      // Get the intended redirect path from URL params
+      const redirectPath = searchParams.get('path') || '/snap'
+      
       // Small delay to ensure state is stable
       setTimeout(() => {
-        console.log('🚀 Redirecting to snap page...')
-        router.push('/snap')
+        console.log('🚀 Redirecting to:', redirectPath)
+        router.push(redirectPath)
       }, 500)
     }
-  }, [isAuthenticated, redirectAttempted, router])
+  }, [isAuthenticated, redirectAttempted, router, searchParams])
 
   // Handle when wallet is already connected but not authenticated
   useEffect(() => {

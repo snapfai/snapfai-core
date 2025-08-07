@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 import { type TokenConfig } from '@/lib/tokens'
-import { fetchTokenBalancesForChain, fetchAlchemyPriceForSymbol, type AlchemyTokenHolding } from '@/lib/alchemy-portfolio'
+import { fetchTokenBalancesForChain, fetchTokenPrices, type AlchemyTokenHolding } from '@/lib/alchemy-portfolio'
 import { useQuery, useQueries, type UseQueryOptions } from '@tanstack/react-query'
 
 export interface TokenHolding {
@@ -149,6 +149,9 @@ export function usePortfolio(): PortfolioData {
   
   const [error, setError] = useState<string | null>(null)
   const [lastTokenCount, setLastTokenCount] = useState<number>(0)
+  
+  // Don't make API calls if not connected or no address
+  const shouldFetchData = !!address && isConnected
 
   // Define chains to fetch data from
   const supportedChainIds = [1, 42161, 8453, 137, 10, 43114] // Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche
@@ -158,7 +161,7 @@ export function usePortfolio(): PortfolioData {
     queries: supportedChainIds.map(chainId => ({
       queryKey: ['tokenBalances', chainId, address],
       queryFn: () => fetchTokenBalancesForChain(chainId, address || ''),
-      enabled: !!address && isConnected,
+      enabled: shouldFetchData,
       staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
       gcTime: 10 * 60 * 1000, // Keep in garbage collection for 10 minutes
       retry: 2
@@ -186,23 +189,19 @@ export function usePortfolio(): PortfolioData {
   // Type for price data
   type PriceData = Record<string, { price: number, change24h: number }>
 
-  // Fetch prices using Alchemy API with individual token caching
-  const priceQueries = useQueries({
-    queries: uniqueSymbols.map(symbol => ({
-      queryKey: ['alchemyPrice', symbol],
-      queryFn: () => fetchAlchemyPriceForSymbol(symbol),
-      enabled: !!symbol && uniqueSymbols.length > 0,
-      staleTime: 2 * 60 * 1000, // Consider price data fresh for 2 minutes
-      gcTime: 5 * 60 * 1000, // Keep in garbage collection for 5 minutes
-      retry: 2
-    }))
+  // Fetch prices using enhanced token pricing
+  const pricesQuery = useQuery({
+    queryKey: ['tokenPrices', uniqueSymbols],
+    queryFn: () => fetchTokenPrices(uniqueSymbols),
+    enabled: shouldFetchData && uniqueSymbols.length > 0,
+    staleTime: 2 * 60 * 1000, // Consider price data fresh for 2 minutes
+    gcTime: 5 * 60 * 1000, // Keep in garbage collection for 5 minutes
+    retry: 2
   })
 
   // Convert Alchemy holdings to TokenHoldings with price data
   const allHoldings: TokenHolding[] = alchemyHoldings.map(holding => {
-    const symbolIndex = uniqueSymbols.indexOf(holding.token.symbol)
-    const priceQuery = priceQueries[symbolIndex]
-    const priceData = priceQuery?.data || { price: 0, change24h: 0 }
+    const priceData = pricesQuery.data?.[holding.token.symbol] || { price: 0, change24h: 0 }
     return convertAlchemyToTokenHolding(holding, priceData)
   })
 
@@ -248,7 +247,7 @@ export function usePortfolio(): PortfolioData {
     activeChains: uniqueChains.size
   }
 
-  const isLoading = chainQueries.some(query => query.isLoading) || priceQueries.some(query => query.isLoading)
+  const isLoading = chainQueries.some(query => query.isLoading) || pricesQuery.isLoading
 
   return {
     stats,
@@ -259,15 +258,12 @@ export function usePortfolio(): PortfolioData {
       console.log('🔄 Refreshing all portfolio data...')
       await Promise.all([
         ...chainQueries.map(query => query.refetch()),
-        ...priceQueries.map(query => query.refetch())
+        pricesQuery.refetch()
       ])
     },
     refreshToken: async (symbol: string) => {
-      console.log(`🔄 Refreshing specific token: ${symbol}`)
-      const symbolIndex = uniqueSymbols.indexOf(symbol)
-      if (symbolIndex >= 0) {
-        await priceQueries[symbolIndex]?.refetch()
-      }
+      console.log(`🔄 Refreshing prices for token: ${symbol}`)
+      await pricesQuery.refetch()
     }
   }
 } 

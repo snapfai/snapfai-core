@@ -23,6 +23,8 @@ export default function HomeClientWrapper({
     const redirected = searchParams.get('redirected')
     const path = searchParams.get('path')
     
+    console.log('🏠 HomeClientWrapper - URL params:', { redirected, path, isAuthenticated, isConnecting })
+    
     if (path) {
       setRedirectPath(path)
     }
@@ -30,13 +32,16 @@ export default function HomeClientWrapper({
     if (redirected === 'true') {
       if (isAuthenticated) {
         // If the user is authenticated and we have redirected=true, send them to their destination
-        router.push(path || '/snap')
+        const targetPath = path || redirectPath || '/snap'
+        console.log('✅ Authenticated, redirecting to:', targetPath)
+        router.push(targetPath)
       } else if (!isConnecting) {
         // Only show prompt if not currently connecting
+        console.log('❌ Not authenticated, showing connect prompt')
         setShowPrompt(true)
       }
     }
-  }, [searchParams, isAuthenticated, isConnected, router, isConnecting])
+  }, [searchParams, isAuthenticated, isConnected, router, isConnecting, redirectPath])
 
   if (showPrompt) {
     return (

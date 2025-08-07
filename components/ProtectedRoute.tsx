@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsInitialized(true)
-    }, 1000)
+    }, 500) // Reduced from 1000ms to 500ms for faster initialization
     
     return () => clearTimeout(timer)
   }, [])
@@ -35,12 +35,20 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Handle redirection for unauthenticated users
   useEffect(() => {
     if (isInitialized && !isAuthenticated && !redirectAttempted && !isConnecting) {
-      console.log('❌ Not authenticated, redirecting to connect page...')
-      setRedirectAttempted(true)
+      // Add an additional delay to allow auth status to settle after page refresh
+      const redirectTimer = setTimeout(() => {
+        // Double-check auth status before redirecting
+        if (!isAuthenticated && !isConnecting) {
+          console.log('❌ Not authenticated after final check, redirecting to connect page...')
+          setRedirectAttempted(true)
+          
+          // Add a query param to prevent redirect loops
+          const currentPath = window.location.pathname
+          router.push(`/?redirected=true&path=${encodeURIComponent(currentPath)}`)
+        }
+      }, 1000) // Additional 1 second delay for auth to settle
       
-      // Add a query param to prevent redirect loops
-      const currentPath = window.location.pathname
-      router.push(`/?redirected=true&path=${encodeURIComponent(currentPath)}`)
+      return () => clearTimeout(redirectTimer)
     }
   }, [isInitialized, isAuthenticated, redirectAttempted, isConnecting, router])
 
