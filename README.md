@@ -2,55 +2,59 @@
 
 SnapFAI is a revolutionary interaction layer that transforms how you engage with decentralized finance (DeFi). Powered by conversational AI and real-time data aggregation, SnapFAI simplifies complex DeFi operations through natural language commands.
 
-## Features
+## ✨ Key Features
 
 ### 🤖 AI-Powered DeFi Assistant
 - **Natural Language Interface**: Interact with DeFi protocols using simple conversational commands
-- **Smart Recommendations**: Get optimal strategies for swaps, lending, and yield farming
+- **Smart Recommendations**: Get optimal strategies for swaps, lending, and yield farming  
 - **Real-time Data**: Access live market data, prices, and protocol information
+- **XAI Integration**: Powered by X.AI (Grok) for advanced natural language processing
+- **Price Queries**: Ask "What's the price of ETH?" and get real-time data from Binance + CoinGecko
 
-### 💼 Multi-Chain Portfolio Management (NEW!)
-- **Portfolio Dashboard**: Track your DeFi assets across all supported networks in one place
-- **Real Alchemy Integration**: Powered by [Alchemy's Token API](https://docs.alchemy.com/reference/token-api) for accurate balance data
-- **Multi-Chain Support**: Monitor holdings on Ethereum, Arbitrum, Base, Polygon, Avalanche, and more
-- **Real-time Balances**: View live token balances fetched directly from blockchain via Alchemy
-- **Chain-Specific Filtering**: Filter holdings by specific networks
-- **Automatic Token Discovery**: Uses Alchemy's `erc20` parameter to find all your tokens automatically
-- **Portfolio Analytics**: Track performance, gains/losses, and asset distribution (coming soon)
+### 💼 Multi-Chain Portfolio Management ⭐
+- **Real Portfolio Dashboard**: Track your actual DeFi assets across all supported networks
+- **Alchemy Integration**: Powered by [Alchemy's Token API](https://docs.alchemy.com/reference/token-api) for accurate balance data
+- **Multi-Chain Support**: Monitor holdings on Ethereum, Arbitrum, Base, Polygon, Avalanche, and Optimism
+- **Real-time Balances**: View live token balances fetched directly from blockchain
+- **Native Token Support**: Proper ETH, MATIC, AVAX display with accurate pricing
+- **Automatic Token Discovery**: Finds all your ERC-20 tokens automatically
+- **Enhanced Pricing**: Real-time prices using Binance API (primary) + CoinGecko (fallback)
+- **Portfolio Analytics**: Track performance, gains/losses, and asset distribution
 
-### 🔄 Smart Swaps
-- **Multi-DEX Aggregation**: Get the best rates across 0x, 1inch, ParaSwap, and other aggregators
+### 🔄 Smart Swaps & Trading
+- **0x Protocol Integration**: Get the best rates using 0x API with permit2 support
+- **Multi-DEX Aggregation**: Access liquidity across multiple decentralized exchanges
 - **Cross-Chain Swaps**: Seamlessly swap tokens across different networks
 - **Slippage Protection**: Automatic slippage management for optimal trade execution
+- **Real-time Quotes**: Live pricing and swap quotes with 500ms debounced updates
+- **Gas Optimization**: Smart gas estimation and optimization
 
-### 🌐 Cross-Chain Interactions
-- **LayerZero Integration**: Seamless cross-chain asset transfers
-- **deBridge Support**: Additional bridging options for better liquidity
+### 🔐 Advanced Wallet & Authentication
+- **AppKit Integration**: Multi-wallet support (MetaMask, WalletConnect, Coinbase Wallet, etc.)
+- **SIWE Authentication**: Sign-In with Ethereum for secure, gasless authentication
+- **Chain-Agnostic Sessions**: Switch networks without re-authenticating
+- **Session Management**: Persistent sessions with secure server-side validation
+- **Protected Routes**: Secure access to portfolio and trading features
+
+### 🌐 Cross-Chain Infrastructure
+- **7 Networks Supported**: Ethereum, Arbitrum, Base, Polygon, Avalanche, Optimism, Sepolia
 - **Multi-Network Wallet**: Single wallet interface for all supported chains
+- **Network Switching**: Seamless network switching with proper chain configurations
+- **Custom Network Support**: Easily extendable to new EVM chains
 
-### 📊 Borrow & Earn
-- **Lending Protocols**: Integrate with Aave, Compound, SparkFi, and more
-- **Yield Farming**: Discover and manage yield farming opportunities
-- **Risk Assessment**: Smart analysis of lending and borrowing risks
+## 🚀 Supported Networks
 
-### ⚡ Automation & Triggers
-- **Time-based Triggers**: Schedule DeFi actions for optimal timing
-- **Price-based Alerts**: Execute trades when target prices are reached
-- **Gas Optimization**: Automatic gas price optimization for transactions
+| Network | Chain ID | Native Token | Portfolio Support | Swap Support | Status |
+|---------|----------|--------------|-------------------|--------------|--------|
+| Ethereum | 1 | ETH | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Arbitrum | 42161 | ETH | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Base | 8453 | ETH | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Polygon | 137 | MATIC | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Avalanche | 43114 | AVAX | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Optimism | 10 | ETH | ✅ Alchemy API | ✅ 0x Protocol | ✅ Active |
+| Sepolia | 11155111 | ETH | ✅ Alchemy API | ✅ 0x Protocol | ✅ Testnet |
 
-## Supported Networks
-
-| Network | Chain ID | Native Token | Portfolio Support | Status |
-|---------|----------|--------------|-------------------|--------|
-| Ethereum | 1 | ETH | ✅ Alchemy API | ✅ Active |
-| Arbitrum | 42161 | ETH | ✅ Alchemy API | ✅ Active |
-| Base | 8453 | ETH | ✅ Alchemy API | ✅ Active |
-| Polygon | 137 | MATIC | ✅ Alchemy API | ✅ Active |
-| Avalanche | 43114 | AVAX | ✅ Alchemy API | ✅ Active |
-| Optimism | 10 | ETH | ✅ Alchemy API | ✅ Active |
-| Sepolia | 11155111 | ETH | ✅ Alchemy API | ✅ Testnet |
-
-## Getting Started
+## 🛠 Getting Started
 
 ### Prerequisites
 - Node.js 18+ and npm
@@ -60,192 +64,255 @@ SnapFAI is a revolutionary interaction layer that transforms how you engage with
 
 ### Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 ```bash
 git clone https://github.com/your-org/snapfai.git
 cd snapfai
 ```
 
-2. Install dependencies:
+2. **Install dependencies:**
 ```bash
 npm install
 ```
 
-3. Set up environment variables:
+3. **Set up environment variables:**
 ```bash
 cp .env.example .env.local
 ```
 
-4. **Configure Alchemy API (Required for Portfolio)**:
-   - Sign up for free at [Alchemy.com](https://www.alchemy.com/)
-   - Create a new app on their dashboard
-   - Copy your API key and add it to `.env.local`:
-   ```bash
-   NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key_here
-   ```
+4. **Configure Required API Keys:**
 
-5. Add other optional API keys:
+**Alchemy API (Required for Portfolio):**
+- Sign up for free at [Alchemy.com](https://www.alchemy.com/)
+- Create a new app supporting your desired networks
+- Add your API key to `.env.local`:
 ```bash
-# AI API Configuration  
-XAI_API_KEY=your_xai_api_key_here
-
-# DeFi API Keys (optional)
-ZERO_X_API_KEY=your_0x_api_key_here
-ODOS_API_KEY=your_odos_api_key_here
-
-# Web3 Configuration
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id_here
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key_here
 ```
 
-6. Run the development server:
+**Complete Environment Configuration:**
+```bash
+# Alchemy Integration (Required)
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key_here
+
+# AI API Configuration
+XAI_API_KEY=your_xai_api_key_here
+
+# DeFi API Keys
+ZERO_X_API_KEY=your_0x_api_key_here
+NEXT_PUBLIC_ZEROEX_API_KEY=your_0x_api_key_here
+
+# Web3 Configuration  
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id_here
+
+# Optional APIs
+NEXT_PUBLIC_ETHERSCAN_API_KEY=your_etherscan_api_key_here
+```
+
+5. **Run the development server:**
 ```bash
 npm run dev
 ```
 
-7. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. **Open [http://localhost:3000](http://localhost:3000) in your browser**
 
-### 🔑 Setting Up Alchemy for Portfolio Features
+### 🔑 API Key Setup Guide
 
-To get real, accurate portfolio data, you'll need an Alchemy API key:
+**Alchemy (Portfolio Data) - REQUIRED:**
+1. Visit [Alchemy.com](https://www.alchemy.com/) and create a free account
+2. Create a new app and select your desired networks
+3. Copy your API key and add to `NEXT_PUBLIC_ALCHEMY_API_KEY`
+4. Free tier includes 5M compute units/month (perfect for testing)
 
-1. **Sign Up**: Visit [Alchemy.com](https://www.alchemy.com/) and create a free account
-2. **Create App**: Go to your dashboard and create a new app
-3. **Choose Networks**: Select the networks you want to support (Ethereum, Arbitrum, etc.)
-4. **Get API Key**: Copy your API key from the app dashboard
-5. **Add to Environment**: Set `NEXT_PUBLIC_ALCHEMY_API_KEY` in your `.env.local` file
+**0x Protocol (Swap Data) - RECOMMENDED:**
+1. Visit [0x.org](https://0x.org/docs/introduction/getting-started) 
+2. Sign up for a free API key
+3. Add to both `ZERO_X_API_KEY` and `NEXT_PUBLIC_ZEROEX_API_KEY`
 
-**What you get with Alchemy integration:**
-- ✅ Real token balances across all supported chains
-- ✅ Automatic token discovery (finds all ERC-20 tokens you own)
-- ✅ Token metadata (names, symbols, logos, decimals)
-- ✅ Up to 100 tokens per address per chain
-- ✅ Fast, reliable blockchain data
+**X.AI (Chat Features) - OPTIONAL:**
+1. Get API access from [x.ai](https://x.ai/)
+2. Add to `XAI_API_KEY` for advanced AI features
 
-**Free Tier Limits:**
-- 5 million compute units per month
-- Enough for thousands of portfolio loads
-- Perfect for individual users and testing
-
-### Quick Start Guide
-
-1. **Connect Your Wallet**: Click the "Connect Wallet" button and select your preferred wallet
-2. **View Portfolio**: Navigate to `/portfolio` to see your multi-chain asset overview with real Alchemy data
-3. **Start Chatting**: Go to `/snap` and try commands like:
-   - "Swap 0.1 ETH to USDC on Arbitrum"
-   - "Show me the best yield farming opportunities"
-   - "What's the current price of MATIC?"
-
-## Usage Examples
+## 💡 Usage Examples
 
 ### Portfolio Management
 ```
-# View your complete portfolio
+# View your complete multi-chain portfolio
 "Show me my portfolio"
 
-# Check specific chain balances
-"What tokens do I have on Base?"
+# Check specific network balances  
+"What tokens do I have on Arbitrum?"
 
-# Get portfolio summary
-"What's my total portfolio value?"
+# Get portfolio value
+"What's my total portfolio worth?"
+
+# Check ETH holdings across chains
+"How much ETH do I have?"
 ```
 
 ### Token Swaps
 ```
 # Simple swaps
-"Swap 100 USDC to ETH"
+"Swap 100 USDC to ETH on Ethereum"
 
 # Cross-chain swaps
-"Swap 0.5 ETH on Ethereum to USDC on Arbitrum"
+"Swap 0.5 ETH on Arbitrum to USDC"
 
-# Get quotes
-"What's the rate for swapping 1000 USDT to DAI?"
+# Get real-time quotes
+"What's the rate for 1000 USDT to DAI?"
+
+# Best price discovery
+"Find the best rate to swap BTC to ETH"
 ```
 
-### DeFi Operations
+### Price Queries
 ```
-# Lending
-"Lend 1000 USDC on Aave"
+# Real-time prices
+"What's the current price of ETH?"
+"Show me BTC price"
+"How much is MATIC worth?"
 
-# Borrowing
-"Borrow 500 DAI against my ETH"
-
-# Yield farming
-"Find the best yield for USDC"
+# Price with 24h change
+"ETH price with daily change"
 ```
 
-## Architecture
+## 🏗 Architecture
 
-### Frontend
-- **Next.js 14**: React framework with App Router
-- **TypeScript**: Type-safe development
-- **Tailwind CSS**: Utility-first styling
-- **Shadcn/UI**: Modern component library
+### Frontend Stack
+- **Next.js 14**: React framework with App Router and TypeScript
+- **Tailwind CSS**: Utility-first styling with Shadcn/UI components
+- **React Query**: Data fetching and caching
+- **Wagmi + Viem**: Ethereum interactions and wallet management
 
-### Wallet Integration
-- **AppKit (WalletConnect)**: Multi-wallet support
-- **SIWE**: Sign-In with Ethereum for authentication
-- **Wagmi**: React hooks for Ethereum
+### Wallet & Authentication
+- **AppKit (Reown)**: Multi-wallet connection with WalletConnect v2
+- **SIWE (Sign-In with Ethereum)**: Gasless authentication across all chains
+- **Session Management**: Persistent, secure sessions with server-side validation
+- **Protected Routes**: Secure access control for authenticated features
 
-### Portfolio Data (NEW!)
+### Portfolio & Data Layer
 - **Alchemy SDK**: Reliable blockchain data across all supported networks
-- **Multi-chain Balance Fetching**: Parallel API calls for fast loading
+- **Enhanced Pricing**: Binance API (primary) + CoinGecko (fallback) for real-time prices
+- **Multi-chain Balance Fetching**: Parallel API calls for fast portfolio loading
 - **Token Discovery**: Automatic detection of all ERC-20 holdings
-- **Real-time Prices**: Mock prices (ready for CoinGecko/CoinMarketCap integration)
+- **Native Token Support**: Proper handling of ETH, MATIC, AVAX, etc.
 
-### AI & Data
-- **OpenAI GPT-4**: Natural language processing
-- **Real-time APIs**: Live price and market data
-- **Multi-source aggregation**: Data from multiple DeFi protocols
+### Trading & DeFi Integration
+- **0x Protocol**: Professional-grade swap aggregation with permit2
+- **Multi-DEX Access**: Best rates across decentralized exchanges  
+- **Cross-chain Support**: Network-specific swap optimization
+- **Gas Optimization**: Smart gas estimation and transaction optimization
 
-## Development
+### AI & Intelligence
+- **X.AI Integration**: Advanced natural language processing
+- **Function Calling**: Direct DeFi operations via conversational commands
+- **Real-time Market Data**: Live prices and market information
+- **Smart Recommendations**: AI-powered trading and investment suggestions
 
-### Project Structure
+## 📁 Project Structure
+
 ```
 snapfai/
-├── app/                 # Next.js app directory
-│   ├── api/            # API routes
-│   ├── portfolio/      # Portfolio page (NEW!)
-│   ├── snap/           # AI chat interface
-│   └── swap/           # Swap interface
-├── components/         # Reusable components
-│   ├── ui/            # UI components
-│   └── ...            # Feature components
-├── hooks/             # Custom React hooks
-│   └── usePortfolio.ts # Portfolio data hook (NEW!)
-├── lib/               # Utilities and configurations
-│   ├── alchemy-portfolio.ts # Alchemy integration (NEW!)
-│   ├── chains.ts      # Multi-chain configuration
-│   └── tokens.ts      # Token configurations
-└── config/            # Network and app configuration
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   │   ├── auth/         # SIWE authentication endpoints
+│   │   ├── prompt/       # AI chat processing
+│   │   └── swap/         # Trading API endpoints
+│   ├── portfolio/        # Portfolio dashboard
+│   ├── snap/             # AI chat interface  
+│   ├── swap/             # Trading interface
+│   └── wallet/           # Wallet management
+├── components/            # Reusable components
+│   ├── ui/               # Shadcn/UI components
+│   ├── Chat.tsx          # AI chat interface
+│   ├── SwapInterface.tsx # Trading component
+│   └── WalletInfo.tsx    # Multi-chain wallet display
+├── hooks/                # Custom React hooks
+│   ├── usePortfolio.ts   # Portfolio data management
+│   ├── useSwap.ts        # Trading functionality
+│   └── useAuthStatus.ts  # Authentication state
+├── lib/                  # Core utilities
+│   ├── alchemy-portfolio.ts  # Alchemy SDK integration
+│   ├── siwe-config.ts    # SIWE authentication config
+│   ├── chains.ts         # Multi-chain configuration
+│   ├── tokens.ts         # Token definitions (15K+ tokens)
+│   └── swap-utils.ts     # Trading utilities
+├── server/               # Backend services
+│   └── services/         # Microservices (AI, swap, execution)
+└── config/               # Network and app configuration
 ```
 
-### Key Components
-- `usePortfolio`: Hook for fetching multi-chain portfolio data via Alchemy
-- `alchemy-portfolio.ts`: Alchemy SDK integration utilities
-- `Chat`: AI-powered conversation interface
-- `SwapInterface`: Token swap functionality
-- `WalletInfo`: Multi-chain wallet information display
+### Key Components & Hooks
 
-### API Integration Examples
+**Portfolio Management:**
+- `usePortfolio`: Multi-chain portfolio data with real-time pricing
+- `alchemy-portfolio.ts`: Alchemy SDK integration with enhanced pricing
+- `WalletSummary`: Portfolio overview with analytics
 
-**Portfolio Data with Alchemy:**
+**Trading System:**
+- `useSwap`: Trading functionality with 0x integration
+- `SwapInterface`: Professional trading interface
+- `SwapConfirmation`: Transaction confirmation flow
+
+**Authentication:**
+- `siwe-config.ts`: Chain-agnostic SIWE configuration
+- `ProtectedRoute`: Secure route protection
+- `useAuthStatus`: Authentication state management
+
+## 🔧 API Integrations
+
+### Portfolio Data (Alchemy)
 ```typescript
-// Real token balances across all chains
+// Multi-chain balance fetching
 const balances = await alchemy.core.getTokenBalances(address, ['erc20'])
 
-// Token metadata with logos and decimals
+// Native token balances (ETH, MATIC, AVAX)
+const nativeBalance = await alchemy.core.getBalance(address)
+
+// Token metadata with logos
 const metadata = await alchemy.core.getTokenMetadata(tokenAddress)
 ```
 
-**Supported Alchemy Networks:**
-- Ethereum Mainnet & Sepolia
-- Arbitrum One
-- Base Mainnet
-- Polygon Mainnet
-- Optimism Mainnet
-- Avalanche C-Chain
+### Real-time Pricing (Binance + CoinGecko)
+```typescript
+// Binance API for major tokens
+const binancePrice = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT`)
 
-## Contributing
+// CoinGecko fallback for all tokens
+const coinGeckoPrice = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd`)
+```
+
+### Trading Integration (0x Protocol)
+```typescript
+// Get swap quote
+const quote = await fetch(`https://api.0x.org/swap/permit2/price?sellToken=${sellToken}&buyToken=${buyToken}&sellAmount=${amount}`)
+
+// Execute swap with permit2
+const transaction = await fetch(`https://api.0x.org/swap/permit2/quote`, { method: 'POST', body: quoteParams })
+```
+
+## 🎯 Recent Major Updates
+
+### Portfolio Enhancement (Latest)
+- ✅ **Fixed ETH Holdings Display**: Resolved native token mapping issues
+- ✅ **Real-time Pricing**: Implemented Binance + CoinGecko pricing strategy
+- ✅ **Enhanced Logging**: Clean, informative portfolio monitoring
+- ✅ **Multi-chain Native Support**: Proper ETH, MATIC, AVAX display
+- ✅ **Performance Optimization**: Batched API calls with rate limiting
+
+### Authentication & Security
+- ✅ **Chain-agnostic SIWE**: Switch networks without re-authentication
+- ✅ **Session Persistence**: Secure server-side session management
+- ✅ **Protected Routes**: Secure access to portfolio and trading
+- ✅ **Fallback Authentication**: Robust error handling and recovery
+
+### Trading & Swap Features
+- ✅ **0x Protocol Integration**: Professional swap aggregation
+- ✅ **Multi-chain Trading**: Network-specific swap optimization
+- ✅ **Real-time Quotes**: Live pricing with debounced updates
+- ✅ **Gas Optimization**: Smart transaction cost management
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
@@ -253,19 +320,33 @@ const metadata = await alchemy.core.getTokenMetadata(tokenAddress)
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-## License
+### Development Guidelines
+- Follow TypeScript best practices
+- Add proper error handling and logging
+- Test across multiple networks
+- Update documentation for new features
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+## 🆘 Support & Resources
 
 - **Documentation**: [https://docs.snapfai.com](https://docs.snapfai.com)
 - **Alchemy Docs**: [https://docs.alchemy.com](https://docs.alchemy.com)
+- **0x Protocol Docs**: [https://0x.org/docs](https://0x.org/docs)
 - **Discord**: Join our community for support and updates
 - **Issues**: Report bugs and request features on GitHub
+
+## 🎉 Acknowledgments
+
+- **Alchemy**: Reliable blockchain infrastructure and APIs
+- **0x Protocol**: Professional-grade swap aggregation
+- **Reown (AppKit)**: Excellent wallet connection infrastructure
+- **X.AI**: Advanced AI capabilities for natural language processing
 
 ---
 
 **Built with ❤️ for the DeFi community**
 
-*Portfolio feature powered by [Alchemy](https://www.alchemy.com/) 🔮*
+*Doing DeFi Like a Snap! ⚡*

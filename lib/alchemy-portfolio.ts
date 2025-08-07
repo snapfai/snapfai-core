@@ -248,7 +248,7 @@ function symbolToAddress(symbol: string): string {
   return mapping[symbol.toUpperCase()] || ''
 }
 
-// Unified fetchTokenPrices function that handles both TokenHolding[] and string[]
+// Enhanced price fetching using Binance + CoinGecko strategy (like Snap chat interface)
 export async function fetchTokenPrices(
   input: TokenHolding[] | string[]
 ): Promise<Record<string, { price: number; change24h: number }>> {
@@ -261,7 +261,7 @@ export async function fetchTokenPrices(
       const symbols = input as string[]
       const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || 'YourApiKeyToken'
       
-      // Convert symbols to TokenHolding[] format for CoinGecko
+      // Convert symbols to TokenHolding[] format for enhanced pricing
       const tokens: TokenHolding[] = symbols.map(symbol => ({
         token: {
           symbol: symbol.toUpperCase(),
@@ -279,22 +279,22 @@ export async function fetchTokenPrices(
         price: 0
       }))
 
-      // Try CoinGecko first
-      const coinGeckoPrices = await fetchCoinGeckoPrices(tokens)
+      // Use enhanced pricing strategy
+      const enhancedPrices = await fetchEnhancedTokenPrices(tokens)
       
-      // For tokens not found in CoinGecko, verify them using Etherscan and use fallback prices
-      return await verifyTokensWithEtherscan(symbols, coinGeckoPrices, ETHERSCAN_API_KEY)
+      // For tokens not found, verify them using Etherscan and use fallback prices
+      return await verifyTokensWithEtherscan(symbols, enhancedPrices, ETHERSCAN_API_KEY)
     } else {
-      // Handle TokenHolding[] input (new implementation)
+      // Handle TokenHolding[] input (enhanced implementation)
       const tokens = input as TokenHolding[]
-      const prices = await fetchCoinGeckoPrices(tokens)
+      const prices = await fetchEnhancedTokenPrices(tokens)
       
       // If we got any valid prices, return them
       if (Object.keys(prices).length > 0) {
         return prices
       }
 
-      // If CoinGecko failed completely, return default prices
+      // If all pricing failed, return default prices
       return tokens.reduce((acc, token) => {
         acc[token.token.symbol] = { price: 0, change24h: 0 }
         return acc
@@ -314,6 +314,194 @@ export async function fetchTokenPrices(
   }
 }
 
+// Enhanced token pricing using Binance + CoinGecko strategy (similar to Snap chat interface)
+async function fetchEnhancedTokenPrices(tokens: TokenHolding[]): Promise<Record<string, { price: number; change24h: number }>> {
+  const prices: Record<string, { price: number; change24h: number }> = {}
+  
+  console.log(`🚀 Using enhanced pricing strategy (Binance + CoinGecko) for ${tokens.length} tokens`)
+  
+  // Token mappings from Snap chat interface
+  const tokenIdMap: Record<string, string> = {
+    "btc": "bitcoin", "bitcoin": "bitcoin",
+    "eth": "ethereum", "ethereum": "ethereum", 
+    "sol": "solana", "solana": "solana",
+    "link": "chainlink", "chainlink": "chainlink",
+    "uni": "uniswap", "uniswap": "uniswap",
+    "bnb": "binancecoin", "binance coin": "binancecoin",
+    "doge": "dogecoin", "dogecoin": "dogecoin",
+    "usdt": "tether", "tether": "tether",
+    "usdc": "usd-coin",
+    "ada": "cardano", "cardano": "cardano",
+    "dot": "polkadot", "polkadot": "polkadot",
+    "matic": "matic-network", "polygon": "matic-network",
+    "avax": "avalanche-2", "avalanche": "avalanche-2",
+    "ltc": "litecoin", "litecoin": "litecoin",
+    "xrp": "ripple", "ripple": "ripple"
+  }
+  
+  const binanceSymbolMap: Record<string, string> = {
+    "btc": "BTCUSDT", "bitcoin": "BTCUSDT",
+    "eth": "ETHUSDT", "ethereum": "ETHUSDT",
+    "sol": "SOLUSDT", "solana": "SOLUSDT", 
+    "link": "LINKUSDT", "chainlink": "LINKUSDT",
+    "uni": "UNIUSDT", "uniswap": "UNIUSDT",
+    "bnb": "BNBUSDT", "binance coin": "BNBUSDT",
+    "doge": "DOGEUSDT", "dogecoin": "DOGEUSDT",
+    "usdt": "USDTUSDC", "tether": "USDTUSDC",
+    "usdc": "USDCUSDT",
+    "ada": "ADAUSDT", "cardano": "ADAUSDT",
+    "dot": "DOTUSDT", "polkadot": "DOTUSDT",
+    "matic": "MATICUSDT", "polygon": "MATICUSDT",
+    "avax": "AVAXUSDT", "avalanche": "AVAXUSDT",
+    "ltc": "LTCUSDT", "litecoin": "LTCUSDT",
+    "xrp": "XRPUSDT", "ripple": "XRPUSDT"
+  }
+  
+  // Process tokens in batches to avoid rate limits
+  const batchSize = 5
+  const batches = []
+  for (let i = 0; i < tokens.length; i += batchSize) {
+    batches.push(tokens.slice(i, i + batchSize))
+  }
+  
+  for (const batch of batches) {
+    const pricePromises = batch.map(async (token) => {
+      try {
+        const symbol = token.token.symbol.toLowerCase()
+        
+        // Try Binance API first for major tokens
+        if (binanceSymbolMap[symbol]) {
+          try {
+            const binancePrice = await fetchBinancePrice(symbol, binanceSymbolMap)
+            if (binancePrice.success) {
+              console.log(`✅ Got Binance price for ${token.token.symbol}: $${binancePrice.price.toFixed(4)}`)
+              return {
+                symbol: token.token.symbol,
+                price: binancePrice.price,
+                change24h: binancePrice.change24h
+              }
+            }
+          } catch (binanceError) {
+            console.warn(`Binance API failed for ${symbol}, falling back to CoinGecko`)
+          }
+        }
+        
+        // Fallback to CoinGecko
+        if (tokenIdMap[symbol]) {
+          try {
+            const coinGeckoPrice = await fetchCoinGeckoPrice(symbol, tokenIdMap)
+            if (coinGeckoPrice.success) {
+              console.log(`✅ Got CoinGecko price for ${token.token.symbol}: $${coinGeckoPrice.price.toFixed(4)}`)
+              return {
+                symbol: token.token.symbol,
+                price: coinGeckoPrice.price,
+                change24h: coinGeckoPrice.change24h
+              }
+            }
+          } catch (coinGeckoError) {
+            console.warn(`CoinGecko API failed for ${symbol}`)
+          }
+        }
+        
+        console.warn(`No price found for ${token.token.symbol}`)
+        return null
+      } catch (error) {
+        console.warn(`Error fetching price for ${token.token.symbol}:`, error)
+        return null
+      }
+    })
+    
+    const results = await Promise.all(pricePromises)
+    
+    // Process results
+    results.forEach(result => {
+      if (result) {
+        prices[result.symbol] = {
+          price: result.price,
+          change24h: result.change24h
+        }
+      }
+    })
+    
+    // Add a small delay between batches to respect rate limits
+    if (batches.indexOf(batch) < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+  }
+  
+  console.log(`📊 Enhanced pricing completed: ${Object.keys(prices).length}/${tokens.length} tokens priced`)
+  return prices
+}
+
+// Binance price fetching (adapted from Snap chat interface)
+async function fetchBinancePrice(symbol: string, binanceSymbolMap: Record<string, string>): Promise<{
+  price: number; change24h: number; success: boolean;
+}> {
+  try {
+    const binanceSymbol = binanceSymbolMap[symbol]
+    if (!binanceSymbol) {
+      throw new Error(`No Binance symbol mapping found for ${symbol}`)
+    }
+    
+    // Get current price and 24h stats
+    const [priceResponse, statsResponse] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`),
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`)
+    ])
+    
+    if (priceResponse.ok && statsResponse.ok) {
+      const priceData = await priceResponse.json()
+      const statsData = await statsResponse.json()
+      
+      return {
+        price: parseFloat(priceData.price),
+        change24h: parseFloat(statsData.priceChangePercent),
+        success: true
+      }
+    }
+    
+    throw new Error(`API error: ${priceResponse.status}/${statsResponse.status}`)
+  } catch (error) {
+    return { price: 0, change24h: 0, success: false }
+  }
+}
+
+// CoinGecko price fetching (adapted from Snap chat interface)
+async function fetchCoinGeckoPrice(symbol: string, tokenIdMap: Record<string, string>): Promise<{
+  price: number; change24h: number; success: boolean;
+}> {
+  try {
+    const coinGeckoId = tokenIdMap[symbol]
+    if (!coinGeckoId) {
+      throw new Error(`No CoinGecko ID mapping found for ${symbol}`)
+    }
+    
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd&include_24hr_change=true`,
+      {
+        headers: { 'Accept': 'application/json' },
+        next: { revalidate: 60 } // Cache for 1 minute
+      }
+    )
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data[coinGeckoId]) {
+        return {
+          price: data[coinGeckoId].usd || 0,
+          change24h: data[coinGeckoId].usd_24h_change || 0,
+          success: true
+        }
+      }
+    }
+    
+    throw new Error(`No data for ${coinGeckoId}`)
+  } catch (error) {
+    return { price: 0, change24h: 0, success: false }
+  }
+}
+
+// Legacy CoinGecko function (fallback for contract-based pricing)
 async function fetchCoinGeckoPrices(tokens: TokenHolding[]): Promise<Record<string, { price: number; change24h: number }>> {
   const prices: Record<string, { price: number; change24h: number }> = {}
   

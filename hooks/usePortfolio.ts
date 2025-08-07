@@ -204,6 +204,23 @@ export function usePortfolio(): PortfolioData {
   // Filter out hidden tokens
   const filteredHoldings = allHoldings.filter(holding => !shouldHideToken(holding))
   const filteredHiddenHoldings = allHoldings.filter(holding => shouldHideToken(holding))
+  
+  // Portfolio summary logging
+  const ethHoldings = allHoldings.filter(h => h.token.symbol.toUpperCase() === 'ETH')
+  console.log('📊 Portfolio Summary:', {
+    totalHoldings: allHoldings.length,
+    visibleHoldings: filteredHoldings.length,
+    hiddenHoldings: filteredHiddenHoldings.length,
+    ethHoldingsCount: ethHoldings.length,
+    totalValueUSD: allHoldings.reduce((sum, h) => sum + h.valueUSD, 0).toFixed(2)
+  })
+  
+  // ETH holdings summary
+  if (ethHoldings.length > 0) {
+    console.log('✅ ETH Holdings Found:', ethHoldings.map(eth => 
+      `${eth.chain}: ${parseFloat(eth.balance).toFixed(4)} ETH ($${eth.valueUSD.toFixed(2)})`
+    ).join(', '))
+  }
 
   // Calculate portfolio stats
   const totalValueUSD = filteredHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
