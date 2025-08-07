@@ -59,7 +59,42 @@ export const formatChange24h = (value: number): string => {
   return value.toFixed(2)
 }
 
-
+// Token filtering logic - determine if token should be hidden
+const shouldHideToken = (holding: TokenHolding): boolean => {
+  const { valueUSD, token, balance } = holding
+  
+  // NEVER hide native tokens (ETH, MATIC, AVAX, etc.) - they are always important
+  const nativeTokens = ['ETH', 'MATIC', 'AVAX', 'BNB', 'SOL', 'ARB', 'OP', 'BASE']
+  if (nativeTokens.includes(token.symbol.toUpperCase())) {
+    return false
+  }
+  
+  // Hide if value is too low (dust) - but allow native tokens
+  if (valueUSD < 0.10) return true
+  
+  // Hide if no price data available and very small balance
+  if (holding.price === 0 && parseFloat(balance) < 0.001) return true
+  
+  // Hide common spam/airdrop tokens (add more as needed)
+  const spamTokens = [
+    'SPAM', 'AIRDROP', 'FREE', 'TEST', 'SCAM', 'FAKE',
+    'PHISHING', 'VIRUS', 'MALWARE', 'HONEYPOT'
+  ]
+  
+  const isSpamToken = spamTokens.some(spam => 
+    token.symbol.toUpperCase().includes(spam) || 
+    token.name.toUpperCase().includes(spam)
+  )
+  
+  if (isSpamToken) return true
+  
+  // Hide tokens with suspicious characteristics
+  if (token.symbol.length > 20) return true // Very long symbols
+  if (token.symbol.includes('🚀') || token.symbol.includes('💎')) return true // Emoji tokens
+  if (/^\d+$/.test(token.symbol)) return true // Pure number symbols
+  
+  return false
+}
 
 // Assess risk level of a token
 const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
@@ -174,8 +209,26 @@ export function usePortfolio(): PortfolioData {
   // Sort by value descending
   allHoldings.sort((a, b) => b.valueUSD - a.valueUSD)
 
-  // All holdings are now visible (no hidden tokens)
-  const filteredHoldings = allHoldings
+  // Filter out hidden tokens
+  const filteredHoldings = allHoldings.filter(holding => !shouldHideToken(holding))
+  const filteredHiddenHoldings = allHoldings.filter(holding => shouldHideToken(holding))
+  
+  // Portfolio summary logging
+  const ethHoldings = allHoldings.filter(h => h.token.symbol.toUpperCase() === 'ETH')
+  console.log('📊 Portfolio Summary:', {
+    totalHoldings: allHoldings.length,
+    visibleHoldings: filteredHoldings.length,
+    hiddenHoldings: filteredHiddenHoldings.length,
+    ethHoldingsCount: ethHoldings.length,
+    totalValueUSD: allHoldings.reduce((sum, h) => sum + h.valueUSD, 0).toFixed(2)
+  })
+  
+  // ETH holdings summary
+  if (ethHoldings.length > 0) {
+    console.log('✅ ETH Holdings Found:', ethHoldings.map(eth => 
+      `${eth.chain}: ${parseFloat(eth.balance).toFixed(4)} ETH ($${eth.valueUSD.toFixed(2)})`
+    ).join(', '))
+  }
 
   // Calculate portfolio stats
   const totalValueUSD = filteredHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
