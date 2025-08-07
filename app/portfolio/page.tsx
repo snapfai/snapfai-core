@@ -3,17 +3,20 @@
 import { useAppKitAccount, useAppKitNetwork, useWalletInfo } from '@reown/appkit/react'
 import { Button } from '@/components/ui/button'
 import { useAppKit } from '@reown/appkit/react'
-import { ArrowLeftIcon, TrendingUp, TrendingDown, Wallet, PieChart, Activity, RefreshCw, Layers } from 'lucide-react'
+import { ArrowLeftIcon, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+// TODO: Re-add these imports when features are implemented: PieChart, Activity, Layers
 import Link from 'next/link'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+// TODO: Re-import when multiple features are implemented
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { useState } from 'react'
 import { usePortfolio, type TokenHolding } from '@/hooks/usePortfolio'
-import { PortfolioAnalysis } from './analysis'
+// TODO: Re-import when analytics feature is implemented
+// import { PortfolioAnalysis } from './analysis'
 
 export default function PortfolioPage() {
   const { isConnected, address } = useAppKitAccount()
@@ -21,13 +24,39 @@ export default function PortfolioPage() {
   const { walletInfo } = useWalletInfo()
   const { open } = useAppKit()
   
-  const { stats: portfolioStats, holdings: tokenHoldings, isLoading, error, refresh, refreshToken } = usePortfolio()
+  const { stats: portfolioStats, holdings: tokenHoldings, hiddenHoldings, isLoading, error } = usePortfolio()
   const [selectedChain, setSelectedChain] = useState<number | 'all'>('all')
   const [showUnsupported, setShowUnsupported] = useState(false)
 
+  // Combine visible and hidden holdings based on showUnsupported toggle
+  const allHoldings = showUnsupported ? [...tokenHoldings, ...hiddenHoldings] : tokenHoldings
+  
   const filteredHoldings = selectedChain === 'all' 
-    ? tokenHoldings 
-    : tokenHoldings.filter(holding => holding.chainId === selectedChain)
+    ? allHoldings 
+    : allHoldings.filter(holding => holding.chainId === selectedChain)
+
+  // Calculate dynamic stats based on currently displayed holdings
+  const calculateDynamicStats = () => {
+    const totalValueUSD = allHoldings.reduce((sum, holding) => sum + holding.valueUSD, 0)
+    const totalChange24h = allHoldings.reduce((sum, holding) => {
+      return sum + (holding.valueUSD * (holding.change24h || 0) / 100)
+    }, 0)
+    const changePercent = totalValueUSD > 0 ? (totalChange24h / totalValueUSD) * 100 : 0
+    const uniqueChains = new Set(allHoldings.map(h => h.chainId))
+
+    return {
+      totalValue: totalValueUSD === 0 ? '$0.00000' : 
+                  totalValueUSD >= 1 ? `$${totalValueUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` :
+                  `$${totalValueUSD.toFixed(5)}`,
+      totalValueUSD,
+      change24h: parseFloat(totalChange24h.toFixed(2)),
+      changePercent: parseFloat(changePercent.toFixed(2)),
+      totalAssets: allHoldings.length,
+      activeChains: uniqueChains.size
+    }
+  }
+
+  const dynamicStats = calculateDynamicStats()
 
   const getChainBadgeColor = (chainId: number) => {
     const colors: Record<number, string> = {
@@ -42,12 +71,12 @@ export default function PortfolioPage() {
   }
 
   const getUniqueChains = () => {
-    // Get unique chains from token holdings
-    const chains = new Set(tokenHoldings.map(holding => holding.chainId))
+    // Get unique chains from all holdings (visible + hidden if shown)
+    const chains = new Set(allHoldings.map(holding => holding.chainId))
     return Array.from(chains).map(chainId => ({
       id: chainId,
-      name: tokenHoldings.find(h => h.chainId === chainId)?.chain || '',
-      count: tokenHoldings.filter(h => h.chainId === chainId).length
+      name: allHoldings.find(h => h.chainId === chainId)?.chain || '',
+      count: allHoldings.filter(h => h.chainId === chainId).length
     }))
   }
 
@@ -63,10 +92,6 @@ export default function PortfolioPage() {
               <p className="text-muted-foreground">Track your DeFi assets across all networks</p>
             </div>
           </div>
-          <Button onClick={refresh} disabled={isLoading} variant="outline" size="sm">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
         </div>
 
         {/* Wallet Overview */}
@@ -96,24 +121,24 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Portfolio Value</p>
-                <p className="text-3xl font-bold">{portfolioStats.totalValue}</p>
+                <p className="text-3xl font-bold">{dynamicStats.totalValue}</p>
                 <div className="flex items-center gap-1 mt-1">
-                  {portfolioStats.changePercent >= 0 ? (
+                  {dynamicStats.changePercent >= 0 ? (
                     <TrendingUp className="h-4 w-4 text-green-500" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-red-500" />
                   )}
-                  <span className={`text-sm ${portfolioStats.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {portfolioStats.changePercent >= 0 ? '+' : ''}{portfolioStats.changePercent.toFixed(2)}% 
-                    (${portfolioStats.change24h >= 0 ? '+' : ''}${portfolioStats.change24h.toFixed(2)})
+                  <span className={`text-sm ${dynamicStats.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {dynamicStats.changePercent >= 0 ? '+' : ''}{dynamicStats.changePercent.toFixed(2)}% 
+                    (${dynamicStats.change24h >= 0 ? '+' : ''}${dynamicStats.change24h.toFixed(2)})
                   </span>
                   <span className="text-xs text-muted-foreground">24h</span>
                 </div>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Assets</p>
-                <p className="text-2xl font-semibold">{portfolioStats.totalAssets}</p>
-                <p className="text-xs text-muted-foreground mt-1">Across {portfolioStats.activeChains} chains</p>
+                <p className="text-2xl font-semibold">{dynamicStats.totalAssets}</p>
+                <p className="text-xs text-muted-foreground mt-1">Across {dynamicStats.activeChains} chains</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Active Networks</p>
@@ -135,10 +160,12 @@ export default function PortfolioPage() {
         </Card>
 
         {/* Portfolio Content */}
+        {/* 
+        TODO: Uncomment tabs when multiple features are implemented
         <Tabs defaultValue="holdings" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="holdings">
-              Holdings ({tokenHoldings.length})
+              Holdings ({allHoldings.length})
             </TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -146,6 +173,10 @@ export default function PortfolioPage() {
           </TabsList>
 
           <TabsContent value="holdings" className="space-y-4">
+        */}
+        
+        {/* Holdings Section - No tabs needed when it's the only content */}
+        <div className="space-y-4">
             {/* Chain Filter */}
             <Card>
               <CardHeader>
@@ -158,7 +189,7 @@ export default function PortfolioPage() {
                     size="sm"
                     onClick={() => setSelectedChain('all')}
                   >
-                    All Networks ({tokenHoldings.length})
+                    All Networks ({allHoldings.length})
                   </Button>
                   {getUniqueChains().map(chain => (
                     <Button
@@ -189,7 +220,7 @@ export default function PortfolioPage() {
                     size="sm"
                     onClick={() => setShowUnsupported(!showUnsupported)}
                   >
-                    {showUnsupported ? 'Hide' : 'Show'} Unsupported Tokens
+                    {showUnsupported ? 'Hide' : 'Show'} Unsupported Tokens ({hiddenHoldings.length})
                   </Button>
                 </div>
               </CardHeader>
@@ -218,8 +249,15 @@ export default function PortfolioPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {filteredHoldings.map((holding, index) => (
-                      <div key={index} className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    {filteredHoldings.map((holding, index) => {
+                      // Check if this holding is from the hidden list
+                      const isHidden = hiddenHoldings.some(h => 
+                        h.token.address === holding.token.address && 
+                        h.chainId === holding.chainId
+                      )
+                      
+                      return (
+                      <div key={index} className={`flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors ${isHidden ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : ''}`}>
                         <div className="relative">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={holding.token.logoURI} alt={holding.token.symbol} />
@@ -235,94 +273,91 @@ export default function PortfolioPage() {
                           <div className="flex items-center gap-2">
                             <h3 className="font-medium">{holding.token.symbol}</h3>
                             <span className="text-sm text-muted-foreground">{holding.token.name}</span>
+                            {isHidden && (
+                              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                Hidden
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {holding.balance} {holding.token.symbol} on {holding.chain}
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => refreshToken(holding.token.symbol)}
-                              className="h-6 w-6 p-0 hover:bg-muted"
-                              title={`Refresh ${holding.token.symbol} price`}
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                            </Button>
-                            <div>
-                              <p className="font-medium">{holding.value}</p>
-                              {holding.change24h !== undefined && (
-                                <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                  {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
-                                </p>
-                              )}
-                            </div>
+                          <div>
+                            <p className="font-medium">{holding.value}</p>
+                            {holding.change24h !== undefined && (
+                              <p className={`text-sm ${holding.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {holding.change24h >= 0 ? '+' : ''}{holding.change24h.toFixed(2)}%
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>
             </Card>
 
+        </div>
+        
+        {/* 
+        TODO: Uncomment when multiple features are implemented
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Transaction History</CardTitle>
+              <CardDescription>Your recent DeFi transactions across all networks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-lg font-medium">Transaction history coming soon</p>
+                <p className="text-muted-foreground">We're working on integrating transaction tracking</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Transaction History</CardTitle>
-                <CardDescription>Your recent DeFi transactions across all networks</CardDescription>
-              </CardHeader>
-              <CardContent>
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Portfolio Analytics</CardTitle>
+              <CardDescription>Detailed analysis of your portfolio performance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tokenHoldings.length > 0 ? (
+                <PortfolioAnalysis holdings={tokenHoldings} minValue={1} />
+              ) : (
                 <div className="text-center py-8">
-                  <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Transaction history coming soon</p>
-                  <p className="text-muted-foreground">We're working on integrating transaction tracking</p>
+                  <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium">No data to analyze</p>
+                  <p className="text-muted-foreground">Connect your wallet and hold some tokens to see analytics</p>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="analytics" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Portfolio Analytics</CardTitle>
-                <CardDescription>Detailed analysis of your portfolio performance</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {tokenHoldings.length > 0 ? (
-                  <PortfolioAnalysis holdings={tokenHoldings} minValue={1} />
-                ) : (
-                  <div className="text-center py-8">
-                    <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium">No data to analyze</p>
-                    <p className="text-muted-foreground">Connect your wallet and hold some tokens to see analytics</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="protocols" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>DeFi Protocol Positions</CardTitle>
-                <CardDescription>Your positions in lending, staking, and other DeFi protocols</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Layers className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Protocol tracking coming soon</p>
-                  <p className="text-muted-foreground">Monitor your positions in Aave, Compound, and more</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+        <TabsContent value="protocols" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>DeFi Protocol Positions</CardTitle>
+              <CardDescription>Your positions in lending, staking, and other DeFi protocols</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Layers className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-lg font-medium">Protocol tracking coming soon</p>
+                <p className="text-muted-foreground">Monitor your positions in Aave, Compound, and more</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
         </Tabs>
+        */}
       </div>
     </ProtectedRoute>
   )

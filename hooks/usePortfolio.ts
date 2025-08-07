@@ -29,6 +29,7 @@ export interface PortfolioStats {
 interface PortfolioData {
   stats: PortfolioStats
   holdings: TokenHolding[]
+  hiddenHoldings: TokenHolding[]
   isLoading: boolean
   error: string | null
   refresh: () => Promise<void>
@@ -252,6 +253,7 @@ export function usePortfolio(): PortfolioData {
   return {
     stats,
     holdings: filteredHoldings,
+    hiddenHoldings: filteredHiddenHoldings,
     isLoading,
     error,
     refresh: async () => {
