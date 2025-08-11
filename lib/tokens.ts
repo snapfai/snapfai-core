@@ -10156,7 +10156,6 @@ export const TOKENS_BY_CHAIN: Record<number, TokenConfig[]> = {
       decimals: 18,
       name: "Polygon Ecosystem Token",
       logoURI: "https://assets.coingecko.com/coins/images/32440/large/polygon.png?1698233684",
-      isNative: true,
     },
     {
       address: "0xeeeB5EaC2dB7A7Fc28134aA3248580d48b016b64",
