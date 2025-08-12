@@ -60,11 +60,7 @@ const Header = () => {
                 <Link href="/snap" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Snap
                 </Link>
-                {isConnected && (
-                  <Link href="/portfolio" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
-                    Portfolio
-                  </Link>
-                )}
+                {/* Portfolio link hidden per requirements */}
                 <Link href="/stats" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Stats
@@ -93,11 +89,7 @@ const Header = () => {
           <Link href="/snap" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Snap
           </Link>
-          {isConnected && (
-            <Link href="/portfolio" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
-              Portfolio
-            </Link>
-          )}
+          {/* Portfolio link hidden per requirements */}
           <Link href="/stats" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
             <BarChart3 className="h-4 w-4" />
             Stats
@@ -114,16 +106,7 @@ const Header = () => {
             {isConnected && <NetworkSwitcher />}
           </div>
           
-          {!isConnected && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="hidden md:flex dark:text-gray-200 dark:border-gray-700"
-              onClick={() => {}}
-            >
-              Log In
-            </Button>
-          )}
+          {/* Login button removed - wallet connection serves as authentication */}
           
           <ConnectButton />
         </div>

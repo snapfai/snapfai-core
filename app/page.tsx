@@ -34,12 +34,7 @@ export default function Home() {
                     Start Using SnapFAI <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/portfolio" className="w-full sm:w-auto">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto dark:border-gray-700 dark:text-gray-200">
-                    <Wallet className="mr-2 h-4 w-4" />
-                    View Portfolio
-                  </Button>
-                </Link>
+                {/* Portfolio button hidden per requirements */}
                 <Link href="https://docs.snapfai.com" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
                   <Button size="lg" variant="outline" className="w-full sm:w-auto dark:border-gray-700 dark:text-gray-200">
                     Read Docs
