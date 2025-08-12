@@ -140,14 +140,14 @@ export async function GET(request: NextRequest) {
       .from('chat_interactions')
       .select('*', { count: 'exact', head: true })
 
-    const { count: swapIntentChats } = await supabase
-      .from('chat_interactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('led_to_swap', true)
-
-    const chatToSwapConversion = chatMessages && chatMessages > 0
-      ? (swapIntentChats! / chatMessages) * 100
-      : 0
+    // Daily Active Conversations: unique conversation sessions with >=2 messages in last 24h
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data: conversations } = await supabase
+      .from('conversation_sessions')
+      .select('conversation_id, last_activity, message_count')
+      .gte('last_activity', yesterday)
+      .gte('message_count', 2)
+    const dailyActiveConversations = conversations?.length || 0
 
     // Get daily growth for last 7 days
     const dailyGrowth = []
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
       supportedChains,
       supportedTokens,
       chatMessages: chatMessages || 0,
-      chatToSwapConversion: Math.round(chatToSwapConversion * 10) / 10,
+      dailyActiveConversations,
       
       // Distributions
       chainDistribution,

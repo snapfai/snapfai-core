@@ -45,7 +45,7 @@ interface PublicStats {
   supportedChains: number
   supportedTokens: number
   chatMessages: number
-  chatToSwapConversion: number
+  dailyActiveConversations: number
   
   // Chain distribution (percentages only)
   chainDistribution: {
@@ -241,10 +241,15 @@ export default function PublicStatsPage() {
                     <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
                     <span className="text-green-500">+{stats.userGrowthPercent}%</span>
                   </>
-                ) : (
+                ) : stats.userGrowthPercent < 0 ? (
                   <>
                     <ArrowDownRight className="h-3 w-3 text-red-500 mr-1" />
                     <span className="text-red-500">{stats.userGrowthPercent}%</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
+                    <span className="text-green-500">0%</span>
                   </>
                 )}
                 <span className="ml-1">this week</span>
@@ -371,10 +376,10 @@ export default function PublicStatsPage() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm">Chat → Swap Rate</span>
-                    <span className="text-lg font-bold">{stats.chatToSwapConversion.toFixed(1)}%</span>
+                    <span className="text-sm">Daily Active Conversations</span>
+                    <span className="text-lg font-bold">{formatNumber(stats.dailyActiveConversations)}</span>
                   </div>
-                  <Progress value={stats.chatToSwapConversion} className="h-2" />
+                  <div className="text-xs text-muted-foreground">Last 24 hours</div>
                 </div>
                 <div className="pt-2 border-t">
                   <div className="flex items-center justify-between">

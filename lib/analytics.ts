@@ -293,11 +293,12 @@ export class Analytics {
     }
   }
 
-  // Track chat interaction
+  // Track chat interaction with conversation session management
   async trackChatInteraction(data: {
     walletAddress?: string
     messageType: 'user' | 'assistant' | 'system'
     messageContent: string
+    conversationId?: string // Add conversation session tracking
     intent?: string
     detectedTokens?: string[]
     detectedAmounts?: number[]
@@ -315,7 +316,7 @@ export class Analytics {
         userId = user?.id || null
       }
 
-      await supabase
+      const chatRecord = await supabase
         .from('chat_interactions')
         .insert({
           user_id: userId,
@@ -323,6 +324,7 @@ export class Analytics {
           wallet_address: data.walletAddress?.toLowerCase(),
           message_type: data.messageType,
           message_content: data.messageContent.substring(0, 10000), // Limit message length
+          conversation_id: data.conversationId, // Track conversation sessions
           intent: data.intent,
           detected_tokens: data.detectedTokens,
           detected_amounts: data.detectedAmounts,
@@ -332,15 +334,88 @@ export class Analytics {
           led_to_swap: data.ledToSwap || false,
           swap_id: data.swapId
         })
+        .select()
+        .single()
+
+      // Update or create conversation session record
+      if (data.conversationId) {
+        await this.updateConversationSession(data.conversationId, userId)
+      }
 
       // Track chat event
       await this.trackEvent('chat_message', 'chat', {
         message_type: data.messageType,
+        conversation_id: data.conversationId,
         intent: data.intent,
         led_to_swap: data.ledToSwap
       })
     } catch (error) {
       console.error('Error tracking chat interaction:', error)
+    }
+  }
+
+  // Update conversation session activity
+  private async updateConversationSession(conversationId: string, userId: string | null): Promise<void> {
+    try {
+      const now = new Date().toISOString()
+      
+      // Check if conversation session exists
+      const { data: existingSession } = await supabase
+        .from('conversation_sessions')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .single()
+
+      if (existingSession) {
+        // Update existing session
+        await supabase
+          .from('conversation_sessions')
+          .update({
+            last_activity: now,
+            message_count: existingSession.message_count + 1,
+            updated_at: now
+          })
+          .eq('conversation_id', conversationId)
+      } else {
+        // Create new conversation session
+        await supabase
+          .from('conversation_sessions')
+          .insert({
+            conversation_id: conversationId,
+            user_id: userId,
+            session_id: this.currentSessionId,
+            first_activity: now,
+            last_activity: now,
+            message_count: 1,
+            created_at: now,
+            updated_at: now
+          })
+      }
+    } catch (error) {
+      console.error('Error updating conversation session:', error)
+    }
+  }
+
+  // Calculate daily active conversations
+  async getDailyActiveConversations(): Promise<number> {
+    try {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      
+      const { data, error } = await supabase
+        .from('conversation_sessions')
+        .select('conversation_id')
+        .gte('last_activity', yesterday)
+        .gte('message_count', 2) // At least 2 messages (user + AI response)
+
+      if (error) {
+        console.error('Error calculating daily active conversations:', error)
+        return 0
+      }
+
+      return data?.length || 0
+    } catch (error) {
+      console.error('Error in getDailyActiveConversations:', error)
+      return 0
     }
   }
 
@@ -477,7 +552,7 @@ export class Analytics {
         chain_distribution: {}, // Will be updated by separate process
         top_tokens_traded: [], // Will be updated by separate process
         total_chat_messages: 0, // Will be updated by separate process
-        chat_to_swap_conversion: 0, // Will be updated by separate process
+        daily_active_conversations: 0, // Will be updated by separate process
         updated_at: new Date().toISOString()
       };
 

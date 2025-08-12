@@ -367,6 +367,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [userId, setUserId] = useState<string>('');
+  const [conversationId, setConversationId] = useState<string>('');
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [swapDetails, setSwapDetails] = useState<SwapDetails | null>(null);
   const [useLiveSearch, setUseLiveSearch] = useState(false);
@@ -670,6 +671,15 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
       const newUserId = uuid();
       setUserId(newUserId);
       localStorage.setItem('userId', newUserId);
+    }
+    // Initialize a stable conversationId per chat session (persist until reload)
+    const storedConversationId = sessionStorage.getItem('conversationId');
+    if (storedConversationId) {
+      setConversationId(storedConversationId);
+    } else {
+      const newConversationId = uuid();
+      setConversationId(newConversationId);
+      sessionStorage.setItem('conversationId', newConversationId);
     }
   }, []);
 
@@ -1173,7 +1183,8 @@ You can click the buttons below or simply type "yes" or "no":`,
     await analytics.trackChatInteraction({
       walletAddress: address,
       messageType: 'user',
-      messageContent: userMessage
+      messageContent: userMessage,
+      conversationId
     });
     
     // Check if user is asking for transaction data
