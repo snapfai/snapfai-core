@@ -158,6 +158,7 @@ export class Analytics {
   }
 
   // Track a swap transaction
+  // IMPORTANT: USD values are locked at swap timestamp and should NEVER be updated
   async trackSwap(swapData: {
     walletAddress: string
     chainId: number
@@ -236,6 +237,14 @@ export class Analytics {
         value_usd: swapData.tokenInValueUsd
       })
 
+      // Only update daily metrics if swap is confirmed with volume
+      if (swapData.status === 'confirmed' && swapData.tokenInValueUsd) {
+        this.updateDailyMetrics().catch(err => {
+          // Log daily metrics errors but don't break swap tracking
+          console.warn('Daily metrics update failed (non-critical) during trackSwap:', err);
+        });
+      }
+
       return swap.id
     } catch (error) {
       console.error('Error in trackSwap:', error)
@@ -271,6 +280,14 @@ export class Analytics {
 
       // Track status update event
       await this.trackEvent(`swap_${status}`, 'swap', { swap_id: swapId })
+
+      // Only update daily metrics when swap is confirmed (transaction completed)
+      if (status === 'confirmed') {
+        this.updateDailyMetrics().catch(err => {
+          // Log daily metrics errors but don't break swap status updates
+          console.warn('Daily metrics update failed (non-critical) during updateSwapStatus:', err);
+        });
+      }
     } catch (error) {
       console.error('Error updating swap status:', error)
     }
@@ -402,6 +419,87 @@ export class Analytics {
     }
   }
 
+  // Update daily metrics with volume aggregation
+  async updateDailyMetrics(): Promise<void> {
+    try {
+      // Check if daily_metrics table exists first
+      const { error: tableCheckError } = await supabase
+        .from('daily_metrics')
+        .select('id')
+        .limit(1);
+
+      // If table doesn't exist, skip daily metrics update
+      if (tableCheckError?.code === 'PGRST116' || tableCheckError?.message?.includes('does not exist')) {
+        // Table doesn't exist yet, skip daily metrics update
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Get today's swaps and volume
+      const { data: todaySwaps, error: swapsError } = await supabase
+        .from('swaps')
+        .select('token_in_value_usd, status, created_at')
+        .gte('created_at', today)
+        .not('token_in_value_usd', 'is', null);
+
+      if (swapsError) {
+        console.error('Error fetching today\'s swaps for metrics:', swapsError);
+        return;
+      }
+
+      const totalVolumeToday = todaySwaps?.reduce(
+        (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
+        0
+      ) || 0;
+
+      const successfulSwapsToday = todaySwaps?.filter(s => s.status === 'confirmed').length || 0;
+      const totalSwapsToday = todaySwaps?.length || 0;
+
+      // Upsert daily metrics
+      const metricsData = {
+        date: today,
+        total_users: 0, // Will be updated by separate process
+        new_users: 0, // Will be updated by separate process  
+        active_users: 0, // Will be updated by separate process
+        returning_users: 0, // Will be updated by separate process
+        total_sessions: 0, // Will be updated by separate process
+        avg_session_duration_seconds: 0, // Will be updated by separate process
+        total_swaps: totalSwapsToday,
+        successful_swaps: successfulSwapsToday,
+        failed_swaps: totalSwapsToday - successfulSwapsToday,
+        total_volume_usd: totalVolumeToday,
+        avg_swap_size_usd: totalSwapsToday > 0 ? totalVolumeToday / totalSwapsToday : 0,
+        chain_distribution: {}, // Will be updated by separate process
+        top_tokens_traded: [], // Will be updated by separate process
+        total_chat_messages: 0, // Will be updated by separate process
+        chat_to_swap_conversion: 0, // Will be updated by separate process
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('📊 Updating daily metrics for', today, ':', {
+        totalSwaps: totalSwapsToday,
+        successfulSwaps: successfulSwapsToday,
+        totalVolume: totalVolumeToday
+      });
+
+      const { error } = await supabase
+        .from('daily_metrics')
+        .upsert(metricsData, {
+          onConflict: 'date'
+        });
+
+      if (error) {
+        console.error('Error updating daily metrics:', error);
+        console.error('Metrics data that failed:', metricsData);
+      } else {
+        console.log('✅ Daily metrics updated successfully for', today);
+      }
+    } catch (error) {
+      console.error('Error in updateDailyMetrics:', error);
+    }
+  }
+
   // Get analytics summary
   async getAnalyticsSummary(): Promise<any> {
     try {
@@ -417,12 +515,13 @@ export class Analytics {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', today)
 
-      // Get total swaps
+      // Get total swaps (only count confirmed ones for analytics)
       const { count: totalSwaps } = await supabase
         .from('swaps')
         .select('*', { count: 'exact', head: true })
+        .eq('status', 'confirmed')
 
-      // Get successful swaps
+      // Get successful swaps (same as total for public stats)
       const { count: successfulSwaps } = await supabase
         .from('swaps')
         .select('*', { count: 'exact', head: true })
@@ -435,7 +534,7 @@ export class Analytics {
         .eq('status', 'confirmed')
 
       const totalVolumeUsd = volumeData?.reduce(
-        (sum, swap) => sum + (swap.token_in_value_usd || 0),
+        (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
         0
       ) || 0
 

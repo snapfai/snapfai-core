@@ -56,6 +56,17 @@ export default function WalletInfo() {
     }
   }, [isConnected, address, caipNetwork]);
 
+  // Listen for balance change events (e.g., after swaps)
+  useEffect(() => {
+    const handleBalanceChange = () => {
+      console.log('🔄 WalletInfo: Balance change event received, refreshing...');
+      loadBalance();
+    };
+
+    window.addEventListener('wallet-balance-changed', handleBalanceChange);
+    return () => window.removeEventListener('wallet-balance-changed', handleBalanceChange);
+  }, []);
+
   const loadBalance = async () => {
     if (!isConnected || !address) return null;
     

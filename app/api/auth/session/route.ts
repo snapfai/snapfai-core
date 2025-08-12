@@ -19,21 +19,19 @@ export async function GET(request: NextRequest) {
     const sessionId = request.headers.get('x-session-id') || 
                      request.nextUrl.searchParams.get('sessionId');
     
-    console.log('📥 Session GET request - sessionId:', sessionId);
-    console.log('🗂️ All sessions in memory:', Array.from(sessions.keys()));
-    
     if (!sessionId) {
-      console.log('❌ No session ID provided');
       return NextResponse.json({ 
         session: null 
       });
     }
 
     const session = sessions.get(sessionId);
-    console.log('🔍 Found session for', sessionId, ':', session);
     
     if (!session) {
-      console.log('❌ No session found in memory for', sessionId);
+      // Only log when we can't find a session that should exist
+      if (sessionId.length > 10) { // Valid session ID format
+        console.log('❌ No session found for', sessionId.substring(0, 8) + '...');
+      }
       return NextResponse.json({ 
         session: null 
       });
@@ -41,14 +39,12 @@ export async function GET(request: NextRequest) {
 
     // Check if session is expired
     if (Date.now() > session.expiresAt) {
-      console.log('⏰ Session expired for', sessionId);
+      console.log('⏰ Session expired for', sessionId.substring(0, 8) + '...');
       sessions.delete(sessionId);
       return NextResponse.json({ 
         session: null 
       });
     }
-
-    console.log('✅ Returning valid session for', sessionId);
     return NextResponse.json({ 
       session: {
         address: session.address,

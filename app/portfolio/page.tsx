@@ -13,8 +13,9 @@ import { Badge } from '@/components/ui/badge'
 // import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePortfolio, type TokenHolding } from '@/hooks/usePortfolio'
+import { analytics } from '@/lib/analytics'
 // TODO: Re-import when analytics feature is implemented
 // import { PortfolioAnalysis } from './analysis'
 
@@ -57,6 +58,65 @@ export default function PortfolioPage() {
   }
 
   const dynamicStats = calculateDynamicStats()
+
+  // Track portfolio snapshot when data loads
+  useEffect(() => {
+    if (address && tokenHoldings.length > 0 && dynamicStats.totalValueUSD > 0) {
+      console.log('📊 Tracking portfolio snapshot...', {
+        address,
+        totalValue: dynamicStats.totalValueUSD,
+        tokenCount: tokenHoldings.length
+      })
+      
+      // Create chain values object
+      const chainValues: Record<string, number> = {}
+      tokenHoldings.forEach(holding => {
+        const chainName = getChainName(holding.chainId)
+        chainValues[chainName] = (chainValues[chainName] || 0) + holding.valueUSD
+      })
+      
+      // Create token holdings array for analytics
+      const analyticsTokens = tokenHoldings.map(holding => ({
+        symbol: holding.symbol,
+        amount: holding.balance,
+        value_usd: holding.valueUSD
+      }))
+      
+      // Track the portfolio snapshot
+      analytics.trackPortfolioSnapshot(
+        address,
+        dynamicStats.totalValueUSD,
+        chainValues,
+        analyticsTokens
+      ).catch(err => {
+        console.warn('Portfolio tracking failed:', err)
+      })
+    }
+  }, [address, tokenHoldings.length, dynamicStats.totalValueUSD])
+
+  // Listen for portfolio refresh events (e.g., after swaps)
+  useEffect(() => {
+    const handlePortfolioRefresh = () => {
+      console.log('🔄 Portfolio: Refresh event received, refreshing data...');
+      // The usePortfolio hook will automatically refetch due to React Query
+      // We could also call refresh() if we had access to it here
+    };
+
+    window.addEventListener('portfolio-refresh-needed', handlePortfolioRefresh);
+    return () => window.removeEventListener('portfolio-refresh-needed', handlePortfolioRefresh);
+  }, [])
+
+  const getChainName = (chainId: number): string => {
+    const chainNames: Record<number, string> = {
+      1: 'Ethereum',
+      42161: 'Arbitrum',
+      8453: 'Base',
+      137: 'Polygon',
+      10: 'Optimism',
+      43114: 'Avalanche'
+    }
+    return chainNames[chainId] || `Chain-${chainId}`
+  }
 
   const getChainBadgeColor = (chainId: number) => {
     const colors: Record<number, string> = {

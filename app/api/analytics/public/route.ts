@@ -10,9 +10,11 @@ export async function GET(request: NextRequest) {
 
     // Get active users for different periods
     const now = new Date()
-    const today = new Date(now.setHours(0, 0, 0, 0))
-    const weekAgo = new Date(now.setDate(now.getDate() - 7))
-    const monthAgo = new Date(now.setMonth(now.getMonth() - 1))
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()) // Start of today
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    
+
 
     const { count: activeUsersToday } = await supabase
       .from('sessions')
@@ -39,8 +41,8 @@ export async function GET(request: NextRequest) {
       ? ((totalUsers! - usersLastWeek) / usersLastWeek) * 100
       : 0
 
-    // Get swap metrics
-    const { count: totalSwaps } = await supabase
+    // Get swap metrics for success rate calculation
+    const { count: totalSwapsAllStatuses } = await supabase
       .from('swaps')
       .select('*', { count: 'exact', head: true })
 
@@ -52,34 +54,42 @@ export async function GET(request: NextRequest) {
     const { count: swapsToday } = await supabase
       .from('swaps')
       .select('*', { count: 'exact', head: true })
+      .eq('status', 'confirmed')
       .gte('created_at', today.toISOString())
 
-    const swapSuccessRate = totalSwaps && totalSwaps > 0
-      ? (successfulSwaps! / totalSwaps) * 100
+    // For public stats, show confirmed swaps as "total swaps"
+    const totalSwaps = successfulSwaps
+
+    // Calculate success rate based on all attempts vs successful
+    const swapSuccessRate = totalSwapsAllStatuses && totalSwapsAllStatuses > 0
+      ? (successfulSwaps! / totalSwapsAllStatuses) * 100
       : 0
 
-    // Get volume metrics (only confirmed swaps)
+    // Get volume metrics - only include confirmed swaps with volume
     const { data: volumeData } = await supabase
       .from('swaps')
-      .select('token_in_value_usd')
+      .select('token_in_value_usd, status, created_at, token_in_symbol, token_in_amount')
       .eq('status', 'confirmed')
+      .not('token_in_value_usd', 'is', null)
 
     const totalVolumeUsd = volumeData?.reduce(
-      (sum, swap) => sum + (swap.token_in_value_usd || 0),
+      (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
       0
     ) || 0
 
     const { data: volumeTodayData } = await supabase
       .from('swaps')
-      .select('token_in_value_usd')
+      .select('token_in_value_usd, status, created_at')
       .eq('status', 'confirmed')
+      .not('token_in_value_usd', 'is', null)
       .gte('created_at', today.toISOString())
 
     const volumeToday = volumeTodayData?.reduce(
-      (sum, swap) => sum + (swap.token_in_value_usd || 0),
+      (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
       0
     ) || 0
 
+    // Calculate average swap size based on confirmed swaps only
     const averageSwapSize = successfulSwaps && successfulSwaps > 0
       ? totalVolumeUsd / successfulSwaps
       : 0
@@ -157,6 +167,7 @@ export async function GET(request: NextRequest) {
       const { count: daySwaps } = await supabase
         .from('swaps')
         .select('*', { count: 'exact', head: true })
+        .eq('status', 'confirmed')
         .gte('created_at', date.toISOString())
         .lt('created_at', nextDate.toISOString())
 
@@ -164,11 +175,12 @@ export async function GET(request: NextRequest) {
         .from('swaps')
         .select('token_in_value_usd')
         .eq('status', 'confirmed')
+        .not('token_in_value_usd', 'is', null)
         .gte('created_at', date.toISOString())
         .lt('created_at', nextDate.toISOString())
 
       const dayVolume = dayVolumeData?.reduce(
-        (sum, swap) => sum + (swap.token_in_value_usd || 0),
+        (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
         0
       ) || 0
 

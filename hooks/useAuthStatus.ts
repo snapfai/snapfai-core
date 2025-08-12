@@ -41,13 +41,18 @@ export default function useAuthStatus() {
         console.log('🔑 Session ID from localStorage:', sessionId);
         
         if (sessionId) {
-          console.log('📞 Making API call to check session...');
           const response = await fetch(`/api/auth/session?sessionId=${sessionId}`);
-          console.log('📡 Session API response status:', response.status, response.ok);
           
           if (response.ok) {
-            const data = await response.json();
-            console.log('📋 Session API response data:', data);
+            const responseText = await response.text();
+            
+            let data;
+            try {
+              data = responseText ? JSON.parse(responseText) : { session: null };
+            } catch (parseError) {
+              console.error('❌ JSON parse error:', parseError);
+              data = { session: null };
+            }
             
             // Check if we have a valid session
             const session = data.session;
@@ -119,15 +124,14 @@ export default function useAuthStatus() {
         console.error('❌ Error in fallback check:', error);
       }
 
-      console.log('❌ No valid authentication found');
       setIsAuthenticated(false);
     };
 
     // Check auth status immediately
     checkAuthStatus();
     
-    // Also check periodically, but more frequently during initial load
-    const interval = setInterval(checkAuthStatus, 5000); // Every 5 seconds for better responsiveness
+    // Check periodically, but less frequently to reduce server load
+    const interval = setInterval(checkAuthStatus, 15000); // Every 15 seconds
     
     return () => clearInterval(interval);
   }, [isConnected, address, lastCheckTimestamp])

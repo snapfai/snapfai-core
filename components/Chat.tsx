@@ -515,6 +515,17 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     }
   }, [isConnected, address, caipNetwork]);
 
+  // Listen for balance change events (e.g., after swaps)
+  useEffect(() => {
+    const handleBalanceChange = () => {
+      console.log('🔄 Chat: Balance change event received, refreshing...');
+      loadBalance();
+    };
+
+    window.addEventListener('wallet-balance-changed', handleBalanceChange);
+    return () => window.removeEventListener('wallet-balance-changed', handleBalanceChange);
+  }, []);
+
   const loadBalance = async () => {
     if (!isConnected || !address) return null;
     
@@ -824,6 +835,17 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
             if (swapId) {
               await analytics.updateSwapStatus(swapId, 'confirmed', txHash);
             }
+            
+            // Refresh wallet balance and portfolio after successful swap
+            console.log('🔄 Refreshing wallet balance and portfolio after successful swap...');
+            setTimeout(() => {
+              loadBalance();
+              // Trigger custom events for other components to refresh
+              window.dispatchEvent(new CustomEvent('wallet-balance-changed'));
+              window.dispatchEvent(new CustomEvent('portfolio-refresh-needed', {
+                detail: { reason: 'swap-completed', txHash }
+              }));
+            }, 2000); // Wait 2 seconds for blockchain to update
             
             updateMessage(
               messageId,
@@ -1910,8 +1932,18 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
           const sellTokenInfo = resolveToken(tokenIn, chainId);
           const buyTokenInfo = resolveToken(tokenOut, chainId);
           
-          // Estimate USD values (you might want to fetch real prices)
-          const estimatedValueUsd = amount * 100; // Placeholder - replace with actual price calculation
+          // Get real-time USD values using price fetcher
+          const { priceFetcher } = await import('@/lib/price-fetcher');
+          
+          const [tokenInPrice, tokenOutPrice] = await Promise.all([
+            priceFetcher.calculateUSDValue(tokenIn, amount, sellTokenInfo?.address),
+            priceFetcher.calculateUSDValue(tokenOut, parseFloat(formattedBuyAmount), buyTokenInfo?.address)
+          ]);
+          
+          const estimatedValueUsd = tokenInPrice.usdValue;
+          const estimatedOutValueUsd = tokenOutPrice.usdValue;
+          
+
           
           // Track the swap transaction
           const swapId = await analytics.trackSwap({
@@ -1925,7 +1957,7 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
             tokenOutSymbol: tokenOut,
             tokenOutAddress: buyTokenInfo?.address || '',
             tokenOutAmount: formattedBuyAmount,
-            tokenOutValueUsd: parseFloat(formattedBuyAmount) * 100, // Placeholder
+            tokenOutValueUsd: estimatedOutValueUsd,
             txHash: tx,
             status: 'pending',
             protocol: '0x',

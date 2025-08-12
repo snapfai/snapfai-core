@@ -24,8 +24,14 @@ export default function SiweDebugger() {
         try {
           const response = await fetch(`/api/auth/session?sessionId=${sessionId}`)
           if (response.ok) {
-            const data = await response.json()
-            serverSession = data.session
+            const responseText = await response.text()
+            try {
+              const data = responseText ? JSON.parse(responseText) : { session: null }
+              serverSession = data.session
+            } catch (parseError) {
+              console.log('JSON parse error in SiweDebugger:', parseError)
+              serverSession = null
+            }
           }
         } catch (e) {
           console.log('Server session check failed')

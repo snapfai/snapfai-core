@@ -42,10 +42,11 @@ export async function GET(request: NextRequest) {
       .slice(0, 10)
       .map(([token, count]) => ({ token, count }))
 
-    // Recent swaps
+    // Recent swaps (only show confirmed swaps)
     const { data: recentSwaps } = await supabase
       .from('swaps')
       .select('*')
+      .eq('status', 'confirmed')
       .order('created_at', { ascending: false })
       .limit(10)
 

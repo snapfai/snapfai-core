@@ -1,5 +1,6 @@
--- Complete Database Reset Migration
+-- Complete Database Reset Migration - SnapFAI Analytics
 -- This will drop all existing objects and recreate them from scratch
+-- Includes: Real-time pricing, volume tracking, and timestamp-locked USD values
 
 -- Drop all existing views first (due to dependencies)
 DROP VIEW IF EXISTS daily_active_users CASCADE;
@@ -16,11 +17,13 @@ DROP TABLE IF EXISTS users CASCADE;
 
 -- Drop all existing functions
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS prevent_usd_value_updates() CASCADE;
+DROP FUNCTION IF EXISTS refresh_user_stats() CASCADE;
 
 -- Drop all existing triggers (they should be dropped with CASCADE above, but being explicit)
 -- (No explicit DROP TRIGGER needed as CASCADE handles this)
 
--- Now recreate everything from scratch
+-- Now recreate everything from scratch with latest features
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -79,12 +82,12 @@ CREATE TABLE swaps (
   token_in_symbol TEXT NOT NULL,
   token_in_address TEXT NOT NULL,
   token_in_amount DECIMAL(36, 18) NOT NULL,
-  token_in_value_usd DECIMAL(20, 2),
+  token_in_value_usd DECIMAL(20, 2), -- USD value locked at swap timestamp - NEVER updated
   
   token_out_symbol TEXT NOT NULL,
   token_out_address TEXT NOT NULL,
   token_out_amount DECIMAL(36, 18) NOT NULL,
-  token_out_value_usd DECIMAL(20, 2),
+  token_out_value_usd DECIMAL(20, 2), -- USD value locked at swap timestamp - NEVER updated
   
   -- Transaction details
   tx_hash TEXT,
@@ -396,3 +399,94 @@ CREATE POLICY "Anon can read portfolios" ON portfolio_snapshots
 
 CREATE POLICY "Anon can insert portfolios" ON portfolio_snapshots
   FOR INSERT WITH CHECK (true);
+
+-- Add comments to clarify that USD values are locked at swap timestamp
+COMMENT ON COLUMN swaps.token_in_value_usd IS 'USD value of input token at the time of swap - LOCKED, never updated';
+COMMENT ON COLUMN swaps.token_out_value_usd IS 'USD value of output token at the time of swap - LOCKED, never updated';
+COMMENT ON COLUMN swaps.initiated_at IS 'Timestamp when swap was initiated - used for price calculation';
+COMMENT ON COLUMN swaps.confirmed_at IS 'Timestamp when swap was confirmed on blockchain';
+
+-- Function to prevent retroactive USD value updates (protects historical volume data)
+CREATE OR REPLACE FUNCTION prevent_usd_value_updates()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Allow initial setting of USD values (NULL -> value)
+  IF OLD.token_in_value_usd IS NULL AND NEW.token_in_value_usd IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  IF OLD.token_out_value_usd IS NULL AND NEW.token_out_value_usd IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Prevent changes to existing USD values
+  IF OLD.token_in_value_usd IS NOT NULL AND OLD.token_in_value_usd != NEW.token_in_value_usd THEN
+    RAISE EXCEPTION 'Cannot update token_in_value_usd - USD values are locked at swap timestamp';
+  END IF;
+  
+  IF OLD.token_out_value_usd IS NOT NULL AND OLD.token_out_value_usd != NEW.token_out_value_usd THEN
+    RAISE EXCEPTION 'Cannot update token_out_value_usd - USD values are locked at swap timestamp';
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to refresh user statistics after swap updates
+CREATE OR REPLACE FUNCTION refresh_user_stats()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Update user statistics based on confirmed swaps
+  UPDATE users 
+  SET 
+    total_swaps_count = (
+      SELECT COUNT(*) 
+      FROM swaps 
+      WHERE swaps.user_id = users.id 
+      AND swaps.status = 'confirmed'
+    ),
+    total_volume_usd = (
+      SELECT COALESCE(SUM(token_in_value_usd), 0) 
+      FROM swaps 
+      WHERE swaps.user_id = users.id 
+      AND swaps.status = 'confirmed'
+      AND token_in_value_usd IS NOT NULL
+    ),
+    last_active_at = (
+      SELECT MAX(created_at) 
+      FROM swaps 
+      WHERE swaps.user_id = users.id
+    ),
+    updated_at = NOW()
+  WHERE EXISTS (
+    SELECT 1 FROM swaps WHERE swaps.user_id = users.id
+  );
+END;
+$$;
+
+-- Create trigger to prevent USD value updates (disabled by default for initial setup)
+CREATE TRIGGER prevent_usd_value_updates_trigger
+  BEFORE UPDATE ON swaps
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_usd_value_updates();
+
+-- Disable the trigger initially for setup, enable after initial data is loaded
+ALTER TABLE swaps DISABLE TRIGGER prevent_usd_value_updates_trigger;
+
+-- Grant permissions for new functions
+GRANT EXECUTE ON FUNCTION prevent_usd_value_updates() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION refresh_user_stats() TO anon, authenticated;
+
+-- Add final comments explaining the system
+COMMENT ON TRIGGER prevent_usd_value_updates_trigger ON swaps IS 'Prevents retroactive updates to USD values - volume must be locked at swap timestamp';
+COMMENT ON FUNCTION refresh_user_stats() IS 'Refreshes user statistics after swap updates';
+COMMENT ON FUNCTION prevent_usd_value_updates() IS 'Protects historical volume data by preventing USD value changes';
+
+-- System ready message
+-- Volume tracking system initialized with:
+-- 1. Real-time price fetching from CoinGecko API
+-- 2. USD values locked at swap timestamp (never changed)
+-- 3. Comprehensive analytics and user tracking
+-- 4. Database protection against historical data corruption

@@ -115,6 +115,16 @@ export default function PublicStatsPage() {
   }
 
   const formatUSD = (num: number) => {
+    // Show more precision for small values
+    if (num < 1) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      }).format(num)
+    }
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -168,6 +178,8 @@ export default function PublicStatsPage() {
   const volumeProgress = nextVolumeMilestone 
     ? (stats.totalVolumeUsd / nextVolumeMilestone.value) * 100
     : 100
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -399,24 +411,89 @@ export default function PublicStatsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-48 flex items-end justify-between gap-2">
-              {stats.dailyGrowth.slice(-7).map((day, index) => {
-                const maxVolume = Math.max(...stats.dailyGrowth.map(d => d.volume))
-                const height = (day.volume / maxVolume) * 100
-                
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
-                    <div className="w-full bg-primary/20 rounded-t relative" style={{ height: `${height}%` }}>
-                      <div className="absolute -top-6 left-0 right-0 text-center">
-                        <span className="text-xs font-medium">{formatUSD(day.volume)}</span>
-                      </div>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(day.date).toLocaleDateString('en', { weekday: 'short' })}
-                    </span>
-                  </div>
-                )
-              })}
+            <div className="h-48 relative">
+              {/* Chart container */}
+              <div className="absolute inset-0 flex items-end">
+                <svg className="w-full h-full" viewBox="0 0 400 200">
+                  {/* Grid lines */}
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <line
+                      key={i}
+                      x1="40"
+                      y1={40 + i * 32}
+                      x2="360"
+                      y2={40 + i * 32}
+                      stroke="currentColor"
+                      strokeOpacity="0.1"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  
+                  {/* Line chart */}
+                  {(() => {
+                    const weekData = stats.dailyGrowth.slice(-7)
+                    const maxSwaps = Math.max(...weekData.map(d => d.swaps), 1)
+                    const points = weekData.map((day, index) => {
+                      const x = 40 + (index * (320 / 6)) // 320px width, 6 intervals
+                      const y = 180 - ((day.swaps / maxSwaps) * 140) // 140px chart height
+                      return `${x},${y}`
+                    }).join(' ')
+                    
+                    return (
+                      <>
+                        {/* Line */}
+                        <polyline
+                          points={points}
+                          fill="none"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        
+                        {/* Data points */}
+                        {weekData.map((day, index) => {
+                          const x = 40 + (index * (320 / 6))
+                          const y = 180 - ((day.swaps / maxSwaps) * 140)
+                          
+                          return (
+                            <g key={day.date}>
+                              {/* Point circle */}
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="4"
+                                fill="hsl(var(--primary))"
+                                stroke="hsl(var(--background))"
+                                strokeWidth="2"
+                              />
+                              
+                              {/* Value label */}
+                              <text
+                                x={x}
+                                y={y - 12}
+                                textAnchor="middle"
+                                className="text-xs font-medium fill-current"
+                              >
+                                {day.swaps}
+                              </text>
+                            </g>
+                          )
+                        })}
+                      </>
+                    )
+                  })()}
+                </svg>
+              </div>
+              
+              {/* X-axis labels */}
+              <div className="absolute bottom-0 left-0 right-0 flex justify-between px-10">
+                {stats.dailyGrowth.slice(-7).map((day) => (
+                  <span key={day.date} className="text-xs text-muted-foreground">
+                    {new Date(day.date).toLocaleDateString('en', { weekday: 'short' })}
+                  </span>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

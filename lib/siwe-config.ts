@@ -60,17 +60,24 @@ export const siweConfig = createSIWEConfig({
         return null;
       }
 
-      console.log('📞 Checking session with server:', sessionId);
       const response = await fetch(`/api/auth/session?sessionId=${sessionId}`);
       
       if (!response.ok) {
-        console.log('❌ Session API failed, status:', response.status);
         // Don't remove session ID immediately - might be temporary server issue
         return null;
       }
 
-      const { session } = await response.json();
-      console.log('✅ Server returned session:', session);
+      const responseText = await response.text();
+      
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : { session: null };
+      } catch (parseError) {
+        console.error('❌ JSON parse error in getSession:', parseError);
+        return null;
+      }
+      
+      const { session } = data;
       
       if (session && session.address) {
         // Update global state
@@ -192,6 +199,10 @@ export const siweConfig = createSIWEConfig({
     try {
       console.log('👋 Signing out...');
       const sessionId = localStorage.getItem('siwe-session-id');
+      
+      // End analytics session before cleanup
+      const { analytics } = await import('./analytics');
+      await analytics.endSession();
       
       if (sessionId) {
         // Call server to delete session
