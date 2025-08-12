@@ -77,8 +77,8 @@ export default function PortfolioPage() {
       
       // Create token holdings array for analytics
       const analyticsTokens = tokenHoldings.map(holding => ({
-        symbol: holding.symbol,
-        amount: holding.balance,
+        symbol: holding.token.symbol,
+        amount: typeof holding.balance === 'number' ? holding.balance : (parseFloat(holding.balance) || 0),
         value_usd: holding.valueUSD
       }))
       

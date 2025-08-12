@@ -19,7 +19,8 @@ import {
   MessageSquare,
   RefreshCw,
   Trophy,
-  Target
+  Target,
+  LineChart
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -75,7 +76,9 @@ interface PublicStats {
 const MILESTONES = [
   { value: 100, label: '100 Users', icon: '👥' },
   { value: 1000, label: '1K Swaps', icon: '🔄' },
-  { value: 100000, label: '$100K Volume', icon: '💰' },
+  { value: 10000, label: '$10K Volume', icon: '💰' },
+  { value: 50000, label: '$50K Volume', icon: '💎' },
+  { value: 100000, label: '$100K Volume', icon: '🏆' },
   { value: 1000000, label: '$1M Volume', icon: '🎯' },
   { value: 10000, label: '10K Users', icon: '🚀' },
 ]
@@ -83,7 +86,8 @@ const MILESTONES = [
 export default function PublicStatsPage() {
   const [stats, setStats] = useState<PublicStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [selectedMetric, setSelectedMetric] = useState<'users' | 'swaps' | 'volume'>('swaps')
 
   const fetchStats = async () => {
     try {
@@ -190,45 +194,31 @@ export default function PublicStatsPage() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               SnapFAI Platform Stats
             </h1>
-            {autoRefresh && (
-              <Badge variant="outline" className="animate-pulse">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
-                LIVE
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground">
             Decentralized trading made simple • Powered by AI
           </p>
-          <div className="flex items-center justify-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
-            </Button>
-          </div>
         </div>
 
         {/* Milestone Progress */}
         {nextVolumeMilestone && (
-          <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-            <CardHeader className="pb-2">
+          <Card className="relative overflow-hidden border-amber-200/30 bg-gradient-to-br from-amber-50/80 via-yellow-50/60 to-orange-50/80 dark:from-amber-950/20 dark:via-yellow-950/15 dark:to-orange-950/20">
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-yellow-400/5 to-orange-400/5" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-400/10 to-transparent rounded-full -mr-16 -mt-16" />
+            <CardHeader className="pb-2 relative">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
+                <CardTitle className="text-lg flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                  <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   Next Milestone: {nextVolumeMilestone.label}
                 </CardTitle>
-                <span className="text-2xl">{nextVolumeMilestone.icon}</span>
+                <span className="text-2xl filter drop-shadow-sm">{nextVolumeMilestone.icon}</span>
               </div>
             </CardHeader>
-            <CardContent>
-              <Progress value={volumeProgress} className="h-3" />
-              <p className="text-sm text-muted-foreground mt-2">
+            <CardContent className="relative">
+              <Progress value={volumeProgress} className="h-3 bg-amber-100 dark:bg-amber-950/50" />
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-2 font-medium">
                 {formatUSD(stats.totalVolumeUsd)} / {formatUSD(nextVolumeMilestone.value)} 
-                ({volumeProgress.toFixed(1)}% complete)
+                <span className="ml-1 text-amber-600 dark:text-amber-400">({volumeProgress.toFixed(1)}% complete)</span>
               </p>
             </CardContent>
           </Card>
@@ -286,11 +276,9 @@ export default function PublicStatsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatNumber(stats.totalSwaps)}</div>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className="text-xs">
-                  {stats.swapSuccessRate.toFixed(1)}% success
-                </Badge>
-              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatNumber(stats.swapsToday)} today
+              </p>
             </CardContent>
           </Card>
 
@@ -402,99 +390,94 @@ export default function PublicStatsPage() {
         {/* Growth Chart (simplified) */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+                  <LineChart className="h-5 w-5 sm:h-6 sm:w-6" />
               7-Day Growth Trend
             </CardTitle>
-            <CardDescription>
-              Platform activity over the last week
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-48 relative">
-              {/* Chart container */}
-              <div className="absolute inset-0 flex items-end">
-                <svg className="w-full h-full" viewBox="0 0 400 200">
-                  {/* Grid lines */}
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <line
-                      key={i}
-                      x1="40"
-                      y1={40 + i * 32}
-                      x2="360"
-                      y2={40 + i * 32}
-                      stroke="currentColor"
-                      strokeOpacity="0.1"
-                      strokeWidth="1"
-                    />
-                  ))}
-                  
-                  {/* Line chart */}
-                  {(() => {
-                    const weekData = stats.dailyGrowth.slice(-7)
-                    const maxSwaps = Math.max(...weekData.map(d => d.swaps), 1)
-                    const points = weekData.map((day, index) => {
-                      const x = 40 + (index * (320 / 6)) // 320px width, 6 intervals
-                      const y = 180 - ((day.swaps / maxSwaps) * 140) // 140px chart height
-                      return `${x},${y}`
-                    }).join(' ')
-                    
-                    return (
-                      <>
-                        {/* Line */}
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        
-                        {/* Data points */}
-                        {weekData.map((day, index) => {
-                          const x = 40 + (index * (320 / 6))
-                          const y = 180 - ((day.swaps / maxSwaps) * 140)
-                          
-                          return (
-                            <g key={day.date}>
-                              {/* Point circle */}
-                              <circle
-                                cx={x}
-                                cy={y}
-                                r="4"
-                                fill="hsl(var(--primary))"
-                                stroke="hsl(var(--background))"
-                                strokeWidth="2"
-                              />
-                              
-                              {/* Value label */}
-                              <text
-                                x={x}
-                                y={y - 12}
-                                textAnchor="middle"
-                                className="text-xs font-medium fill-current"
-                              >
-                                {day.swaps}
-                              </text>
-                            </g>
-                          )
-                        })}
-                      </>
-                    )
-                  })()}
-                </svg>
+                <CardDescription className="mt-2">Platform activity over the last week</CardDescription>
               </div>
-              
-              {/* X-axis labels */}
-              <div className="absolute bottom-0 left-0 right-0 flex justify-between px-10">
-                {stats.dailyGrowth.slice(-7).map((day) => (
-                  <span key={day.date} className="text-xs text-muted-foreground">
-                    {new Date(day.date).toLocaleDateString('en', { weekday: 'short' })}
-                  </span>
+              <div className="flex gap-2">
+                {(["users", "swaps", "volume"] as const).map((metric) => (
+                  <Button
+                    key={metric}
+                    variant={selectedMetric === metric ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedMetric(metric)}
+                  >
+                    {metric.charAt(0).toUpperCase() + metric.slice(1)}
+                  </Button>
                 ))}
               </div>
             </div>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const weekData = stats.dailyGrowth.slice(-7)
+              const currentData = weekData.map((d) => d[selectedMetric] || 0)
+              const maxValue = Math.max(...currentData, 1)
+              const totalValue = currentData.reduce((sum, val) => sum + val, 0)
+              const avgValue = totalValue / currentData.length
+
+              return (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+                    <div className="text-center">
+                      <div className="text-lg font-bold">
+                        {selectedMetric === "volume" ? formatUSD(totalValue) : formatNumber(totalValue)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Total</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold">
+                        {selectedMetric === "volume" ? formatUSD(avgValue) : formatNumber(Math.round(avgValue))}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Average</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold">
+                        {selectedMetric === "volume"
+                          ? formatUSD(currentData[currentData.length - 1] || 0)
+                          : formatNumber(currentData[currentData.length - 1] || 0)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Today</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center text-sm text-muted-foreground">
+                      <span>7 days ago</span>
+                      <span>Today</span>
+                    </div>
+                    <div className="flex items-end justify-between gap-2 h-32 sm:h-40">
+                      {weekData.map((day, index) => {
+                        const value = day[selectedMetric] || 0
+                        const height = maxValue > 0 ? (value / maxValue) * 100 : 0
+                        const isToday = index === weekData.length - 1
+
+                        return (
+                          <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                            <div className="w-full flex items-end justify-center" style={{ height: "120px" }}>
+                              <div
+                                className={`w-full max-w-8 rounded-t transition-all duration-300 hover:opacity-80 ${
+                                  isToday ? "bg-primary" : "bg-muted-foreground/60"
+                                }`}
+                                style={{ height: `${height}%`, minHeight: value > 0 ? "4px" : "0px" }}
+                                title={`${day.date}: ${selectedMetric === "volume" ? formatUSD(value) : formatNumber(value)}`}
+                              />
+                              </div>
+                            <div className="text-xs text-muted-foreground text-center">
+                              {new Date(day.date).toLocaleDateString("en-US", { weekday: "short" })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
 

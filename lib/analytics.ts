@@ -437,6 +437,7 @@ export class Analytics {
       const today = new Date().toISOString().split('T')[0];
       
       // Get today's swaps and volume
+      console.log('📅 Fetching swaps for date:', today);
       const { data: todaySwaps, error: swapsError } = await supabase
         .from('swaps')
         .select('token_in_value_usd, status, created_at')
@@ -447,6 +448,9 @@ export class Analytics {
         console.error('Error fetching today\'s swaps for metrics:', swapsError);
         return;
       }
+
+      console.log('📊 Found swaps for today:', todaySwaps?.length || 0);
+      console.log('📊 Today\'s swaps data:', todaySwaps);
 
       const totalVolumeToday = todaySwaps?.reduce(
         (sum, swap) => sum + (Number(swap.token_in_value_usd) || 0),
@@ -483,18 +487,16 @@ export class Analytics {
         totalVolume: totalVolumeToday
       });
 
-      const { error } = await supabase
-        .from('daily_metrics')
-        .upsert(metricsData, {
-          onConflict: 'date'
-        });
+      console.log('📊 Complete metrics data to be upserted:', JSON.stringify(metricsData, null, 2));
 
-      if (error) {
-        console.error('Error updating daily metrics:', error);
-        console.error('Metrics data that failed:', metricsData);
-      } else {
-        console.log('✅ Daily metrics updated successfully for', today);
+      // Call secure API route that uses service role (bypasses RLS)
+      const resp = await fetch('/api/analytics/update-daily', { method: 'POST' })
+      if (!resp.ok) {
+        const text = await resp.text()
+        console.error('❌ Error updating daily metrics via route:', text)
+        return
       }
+      console.log('✅ Daily metrics updated successfully for', today)
     } catch (error) {
       console.error('Error in updateDailyMetrics:', error);
     }
