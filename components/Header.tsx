@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Menu, X, Zap, Wallet, ArrowUpDown } from 'lucide-react';
+import { Menu, X, Zap, Wallet, ArrowUpDown, BarChart3 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -65,6 +65,10 @@ const Header = () => {
                     Portfolio
                   </Link>
                 )}
+                <Link href="/stats" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Stats
+                </Link>
                 <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                   Docs
                 </Link>
@@ -94,6 +98,10 @@ const Header = () => {
               Portfolio
             </Link>
           )}
+          <Link href="/stats" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors flex items-center gap-1">
+            <BarChart3 className="h-4 w-4" />
+            Stats
+          </Link>
           <Link href="https://docs.snapfai.com/" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Docs
           </Link>

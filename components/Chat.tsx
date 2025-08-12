@@ -25,6 +25,7 @@ import { resolveToken, getTokensForChain } from '@/lib/tokens';
 import { resolveTokenStrict } from '@/lib/token-resolver';
 import SwapSupportedTokensModal from './SwapSupportedTokensModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { analytics } from '@/lib/analytics';
 
 
 // Add rehype-raw to support HTML in markdown for links
@@ -34,12 +35,14 @@ import rehypeRaw from 'rehype-raw';
 const SmartSuggestions = ({ 
   isConnected, 
   hasPortfolio, 
+  portfolioHoldings,
   onSuggestionClick, 
   visibleSuggestions,
   onDismissSuggestion
 }: { 
   isConnected: boolean, 
   hasPortfolio: boolean, 
+  portfolioHoldings: any[] | null,
   onSuggestionClick: (text: string, index: number) => void,
   visibleSuggestions: number[],
   onDismissSuggestion: (index: number) => void
@@ -58,7 +61,9 @@ const SmartSuggestions = ({
     { icon: "🔗", text: "Explain different blockchain networks" }
   ];
 
-  const allSuggestions = isConnected && hasPortfolio ? portfolioSuggestions : basicSuggestions;
+  // Only show portfolio suggestions if portfolio has been fetched
+  const showPortfolioSuggestions = isConnected && hasPortfolio && portfolioHoldings && portfolioHoldings.length > 0;
+  const allSuggestions = showPortfolioSuggestions ? portfolioSuggestions : basicSuggestions;
   
   // Only show suggestions that are still visible (not dismissed)
   const activeSuggestions = allSuggestions
@@ -386,6 +391,17 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     setValue('message', suggestionText, { shouldValidate: true });
     // Only hide the clicked suggestion
     setVisibleSuggestions(prev => prev.filter(i => i !== index));
+    
+    // Check if this is a portfolio-related suggestion and trigger fetch if needed
+    const portfolioKeywords = ['portfolio', 'rebalance', 'yield', 'risks', 'analyze'];
+    const isPortfolioSuggestion = portfolioKeywords.some(keyword => 
+      suggestionText.toLowerCase().includes(keyword)
+    );
+    
+    if (isPortfolioSuggestion && !shouldFetchPortfolio && !portfolioHoldings) {
+      setShouldFetchPortfolio(true);
+    }
+    
     // Focus textarea
     const textarea = document.querySelector('textarea');
     if (textarea) {
@@ -437,8 +453,9 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
   // Get AppKit functions
   const appKit = useAppKit();
   
-  // Get portfolio information
-  const { holdings: portfolioHoldings, hiddenHoldings: portfolioHiddenHoldings, stats: portfolioStats, isLoading: portfolioLoading } = usePortfolio();
+  // Portfolio state - only fetch when explicitly requested
+  const [shouldFetchPortfolio, setShouldFetchPortfolio] = useState(false);
+  const { holdings: portfolioHoldings, hiddenHoldings: portfolioHiddenHoldings, stats: portfolioStats, isLoading: portfolioLoading } = usePortfolio(shouldFetchPortfolio);
   
   // Reset suggestions when portfolio status changes
   useEffect(() => {
@@ -756,7 +773,8 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     amount: number, 
     tokenIn: string, 
     formattedBuyAmount: string, 
-    tokenOut: string
+    tokenOut: string,
+    swapId?: string | null
   ) => {
     let attempts = 0;
     const maxAttempts = 60; // 60 attempts = ~2 minutes
@@ -802,6 +820,11 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
           
           if (receipt.status === '0x1') {
             // Transaction successful
+            // Update analytics if we have a swap ID
+            if (swapId) {
+              await analytics.updateSwapStatus(swapId, 'confirmed', txHash);
+            }
+            
             updateMessage(
               messageId,
               `✅ **Swap Successful!** 
@@ -821,6 +844,11 @@ Your tokens should now be in your wallet!`
             );
           } else {
             // Transaction failed
+            // Update analytics if we have a swap ID
+            if (swapId) {
+              await analytics.updateSwapStatus(swapId, 'failed', txHash, 'Transaction reverted');
+            }
+            
             updateMessage(
               messageId,
               `❌ **Swap Failed** 
@@ -1092,6 +1120,24 @@ You can click the buttons below or simply type "yes" or "no":`,
     const userMessage = data.message.trim();
     if (!userMessage) return;
     
+    // Check if user is asking for portfolio analysis
+    const portfolioKeywords = [
+      'portfolio', 'holdings', 'balance', 'analyze', 'analysis', 
+      'rebalance', 'assets', 'positions', 'my tokens', 'what do i have',
+      'show me my', 'check my', 'review my', 'assess my'
+    ];
+    
+    const isPortfolioRequest = portfolioKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+    
+    // Trigger portfolio fetch if needed
+    if (isPortfolioRequest && !shouldFetchPortfolio && !portfolioHoldings) {
+      setShouldFetchPortfolio(true);
+      // Add a message indicating we're fetching portfolio data
+      addMessage('assistant', '📊 Fetching your portfolio data across all chains... This may take a moment.');
+    }
+    
     // Hide smart suggestions when user sends a message (but keep individual state)
     if (messages.length >= 2) {
       setShowSmartSuggestions(false);
@@ -1099,6 +1145,14 @@ You can click the buttons below or simply type "yes" or "no":`,
     
     // Add user message to the chat
     addMessage('user', userMessage);
+    
+    // Track chat interaction
+    const startTime = Date.now();
+    await analytics.trackChatInteraction({
+      walletAddress: address,
+      messageType: 'user',
+      messageContent: userMessage
+    });
     
     // Check if user is asking for transaction data
     if (/full transaction data|complete transaction|transaction details/i.test(userMessage) && lastTransactionData) {
@@ -1279,9 +1333,10 @@ You can use this information to manually submit the transaction through your wal
           searchSources: useLiveSearch ? selectedSources : null,
           walletInfo: walletInfoData,
           currentChain: getCurrentChainName(), // Add current chain context
-          portfolioHoldings: portfolioHoldings?.slice(0, 15) || [], // Add portfolio context (top 15 supported holdings)
-          portfolioHiddenHoldings: portfolioHiddenHoldings?.slice(0, 10) || [], // Add hidden/unsupported holdings  
-          portfolioStats: portfolioStats || null // Add portfolio stats
+          // Only send portfolio data if it's been fetched and is relevant
+          portfolioHoldings: (shouldFetchPortfolio && portfolioHoldings) ? portfolioHoldings.slice(0, 15) : [], 
+          portfolioHiddenHoldings: (shouldFetchPortfolio && portfolioHiddenHoldings) ? portfolioHiddenHoldings.slice(0, 10) : [],  
+          portfolioStats: (shouldFetchPortfolio && portfolioStats) ? portfolioStats : null
         })
       });
       
@@ -1569,7 +1624,8 @@ Please try again with a supported token symbol or verify the contract address.`,
   const generateWelcomeMessage = () => {
     const currentChain = capitalize(getCurrentChainName());
     const hasWallet = isConnected && address;
-    const hasPortfolio = portfolioHoldings && portfolioHoldings.length > 0;
+    // Only show portfolio if it's been explicitly fetched
+    const hasPortfolio = shouldFetchPortfolio && portfolioHoldings && portfolioHoldings.length > 0;
     const portfolioValue = portfolioStats?.totalValue || '$0.00';
     const totalAssets = portfolioStats?.totalAssets || 0;
     const activeChains = portfolioStats?.activeChains || 0;
@@ -1604,24 +1660,25 @@ ${portfolioHoldings.some((h: any) => h.token.symbol === 'USDC' || h.token.symbol
 ${portfolioHoldings[0] && portfolioStats?.totalValueUSD && (parseFloat(portfolioHoldings[0].value.replace('$', '').replace(',', '')) / portfolioStats.totalValueUSD) > 0.7 ? '- Your portfolio is heavily concentrated - consider rebalancing' : ''}`;
 
     } else if (hasWallet && !hasPortfolio) {
-      // Connected but no portfolio
+      // Connected but portfolio not fetched yet
       greeting = `# Welcome! 🚀
 
 **${walletName}** • \`${shortAddress}\` • **${currentChain}**
 
-I can see you're connected but don't have any tokens yet, or they're still loading. Let's get you started with DeFi!`;
+You're connected and ready to explore DeFi! I can help you trade, check prices, and analyze your portfolio when you need it.`;
 
-      personalizedContent = `## 🎯 **Perfect Timing to Start**
+      personalizedContent = `## 🎯 **Ready to Assist You**
 
-**🌟 Your DeFi Journey Begins**
-- Connected to **${currentChain}** - you're ready to trade!
-- I'll help you make your first swap safely
-- Get real-time market insights and price alerts
+**🌟 What I Can Do**
+- **Instant Swaps**: "Swap 100 USDC to ETH" - I'll guide you through it
+- **Portfolio Analysis**: "Analyze my portfolio" - I'll fetch and analyze your holdings
+- **Market Data**: "What's the price of ETH?" - Real-time prices
+- **DeFi Insights**: "What's happening in DeFi today?" - Latest trends
 
-**💡 Recommended First Steps**
-- Check current token prices: "What's the price of ETH?"
-- Learn about swapping: "How do I swap tokens safely?"
-- Explore DeFi opportunities: "What's happening in DeFi today?"`;
+**💡 Smart Features**
+- I'll only fetch your portfolio when you ask for analysis (saves API costs)
+- Multi-chain support across Ethereum, Arbitrum, Base, Optimism, and Avalanche
+- AI-powered recommendations based on your specific holdings`;
 
     } else {
       // Not connected
@@ -1847,6 +1904,34 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
             return '';
           };
           const normalizedChain = normalizeChain(chain);
+          
+          // Track swap in analytics with estimated USD values
+          const chainId = getChainId(chain) || 1;
+          const sellTokenInfo = resolveToken(tokenIn, chainId);
+          const buyTokenInfo = resolveToken(tokenOut, chainId);
+          
+          // Estimate USD values (you might want to fetch real prices)
+          const estimatedValueUsd = amount * 100; // Placeholder - replace with actual price calculation
+          
+          // Track the swap transaction
+          const swapId = await analytics.trackSwap({
+            walletAddress: address || '',
+            chainId,
+            chainName: chain,
+            tokenInSymbol: tokenIn,
+            tokenInAddress: sellTokenInfo?.address || '',
+            tokenInAmount: amount.toString(),
+            tokenInValueUsd: estimatedValueUsd,
+            tokenOutSymbol: tokenOut,
+            tokenOutAddress: buyTokenInfo?.address || '',
+            tokenOutAmount: formattedBuyAmount,
+            tokenOutValueUsd: parseFloat(formattedBuyAmount) * 100, // Placeholder
+            txHash: tx,
+            status: 'pending',
+            protocol: '0x',
+            slippage: 1.0
+          });
+          
           const statusMessage = addMessage(
             'assistant', 
             `✅ Transaction submitted! 
@@ -1876,8 +1961,11 @@ You can check the status on ${
 Your swap of ${amount} ${tokenIn} to approximately ${formattedBuyAmount} ${tokenOut} is being processed.`
           );
           
+          // Store swap ID for status tracking
+          setLastTransactionData({ ...transactionRequest, swapId });
+          
           // Track transaction status
-          trackTransactionStatus(tx, statusMessage.id, chain, amount, tokenIn, formattedBuyAmount, tokenOut);
+          trackTransactionStatus(tx, statusMessage.id, chain, amount, tokenIn, formattedBuyAmount, tokenOut, swapId);
         } else {
           // Hash should always be available if transaction was sent
           addMessage('assistant', '✅ Transaction submitted! You can check your wallet for transaction status.');
@@ -2836,6 +2924,7 @@ Just let me know what you'd prefer!`);
           <SmartSuggestions
             isConnected={isConnected}
             hasPortfolio={portfolioHoldings && portfolioHoldings.length > 0}
+            portfolioHoldings={portfolioHoldings}
             onSuggestionClick={handleSuggestionClick}
             visibleSuggestions={visibleSuggestions}
             onDismissSuggestion={handleDismissSuggestion}

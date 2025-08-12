@@ -144,15 +144,15 @@ const convertAlchemyToTokenHolding = (
   return holding
 }
 
-export function usePortfolio(): PortfolioData {
+export function usePortfolio(shouldFetch: boolean = true): PortfolioData {
   const { isConnected, address } = useAppKitAccount()
   const { caipNetwork } = useAppKitNetwork()
   
   const [error, setError] = useState<string | null>(null)
   const [lastTokenCount, setLastTokenCount] = useState<number>(0)
   
-  // Don't make API calls if not connected or no address
-  const shouldFetchData = !!address && isConnected
+  // Don't make API calls if not connected, no address, or explicitly disabled
+  const shouldFetchData = !!address && isConnected && shouldFetch
 
   // Define chains to fetch data from
   const supportedChainIds = [1, 42161, 8453, 137, 10, 43114] // Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche

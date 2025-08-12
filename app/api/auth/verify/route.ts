@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { analytics } from '@/lib/analytics';
 
 // Persistent session storage that survives API route recompiles
 declare global {
-  var __sessions: Map<string, { address: string; chainId: number; expiresAt: number }> | undefined;
+  var __sessions: Map<string, { address: string; chainId: number; expiresAt: number; analyticsSessionId?: string }> | undefined;
 }
 
 // Initialize persistent session storage
 if (!global.__sessions) {
-  global.__sessions = new Map<string, { address: string; chainId: number; expiresAt: number }>();
+  global.__sessions = new Map<string, { address: string; chainId: number; expiresAt: number; analyticsSessionId?: string }>();
 }
 
 const sessions = global.__sessions;
@@ -50,20 +51,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Extract chain ID from message if available
+    const chainMatch = message.match(/Chain ID:\s*(\d+)/);
+    const chainId = chainMatch ? parseInt(chainMatch[1]) : 1;
+    
+    // Map chain ID to chain name
+    const chainNames: Record<number, string> = {
+      1: 'Ethereum',
+      42161: 'Arbitrum',
+      8453: 'Base',
+      10: 'Optimism',
+      43114: 'Avalanche'
+    };
+    const chainName = chainNames[chainId] || 'Unknown';
+
+    // Track wallet connection in analytics
+    const analyticsSessionId = await analytics.startSession(
+      address,
+      chainId,
+      chainName,
+      'siwe'
+    );
+
     // Create a session
     const sessionId = Math.random().toString(36).substring(2, 15);
     const expiresAt = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
     
     const sessionData = {
       address: address.toLowerCase(),
-      chainId: 1, // Store a default chainId but don't restrict validation to it
-      expiresAt
+      chainId, // Store actual chain ID from message
+      expiresAt,
+      analyticsSessionId: analyticsSessionId || undefined
     };
     
     sessions.set(sessionId, sessionData);
     
     console.log('💾 Created chain-agnostic session:', sessionId);
     console.log('📋 Session data:', sessionData);
+    console.log('📊 Analytics session:', analyticsSessionId);
     console.log('🗂️ Total sessions in memory:', sessions.size);
 
     // In production, you'd set this as an httpOnly cookie
