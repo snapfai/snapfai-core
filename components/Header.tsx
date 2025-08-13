@@ -10,7 +10,9 @@ import {
   SheetContent,
   SheetTrigger,
   SheetClose,
+  SheetTitle,
 } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import ConnectButton from './ConnectButton';
 import NetworkSwitcher from './NetworkSwitcher';
 import { useAppKitAccount } from '@reown/appkit/react';
@@ -30,12 +32,17 @@ const Header = () => {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col w-80 [&>button]:hidden">
+              <VisuallyHidden>
+                <SheetTitle>Navigation Menu</SheetTitle>
+              </VisuallyHidden>
               <div className="flex items-center justify-between mb-6">
-                <Link href="/" className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
-                  <span className="font-bold text-lg md:text-xl">SnapFAI</span>
-                  <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
-                </Link>
+                <SheetClose asChild>
+                  <Link href="/" className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
+                    <span className="font-bold text-lg md:text-xl">SnapFAI</span>
+                    <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
+                  </Link>
+                </SheetClose>
                 <SheetClose asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
                     <X className="h-4 w-4" />
@@ -51,23 +58,33 @@ const Header = () => {
               </div>
               
               <nav className="flex flex-col gap-3">
-                <Link href="/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
-                  Home
-                </Link>
-                <Link href="/#features" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
-                  Features
-                </Link>
-                <Link href="/snap" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
-                  Snap
-                </Link>
+                <SheetClose asChild>
+                  <Link href="/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                    Home
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/#features" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                    Features
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/snap" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                    Snap
+                  </Link>
+                </SheetClose>
                 {/* Portfolio link hidden per requirements */}
-                <Link href="/stats" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Stats
-                </Link>
-                <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
-                  Docs
-                </Link>
+                <SheetClose asChild>
+                  <Link href="/stats" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Stats
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                    Docs
+                  </Link>
+                </SheetClose>
               </nav>
             </SheetContent>
           </Sheet>

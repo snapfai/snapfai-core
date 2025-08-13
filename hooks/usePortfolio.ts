@@ -70,7 +70,13 @@ const shouldHideToken = (holding: TokenHolding): boolean => {
     return false
   }
   
-  // Hide if value is too low (dust) - but allow native tokens
+  // NEVER hide major stablecoins - they are always important for portfolio analysis
+  const majorStablecoins = ['USDC', 'USDT', 'DAI', 'USDC.E', 'USDCe', 'USDBC', 'USDE', 'FRAX', 'TUSD', 'USDP', 'PYUSD', 'LUSD', 'GUSD', 'SUSD', 'CRVUSD', 'FDUSD', 'USDS']
+  if (majorStablecoins.includes(token.symbol.toUpperCase())) {
+    return false
+  }
+  
+  // Hide if value is too low (dust) - but allow native tokens and stablecoins
   if (valueUSD < 0.10) return true
   
   // Hide if no price data available and very small balance
@@ -104,6 +110,12 @@ const assessRiskLevel = (holding: TokenHolding): 'low' | 'medium' | 'high' => {
   // Native tokens are always low risk, regardless of value
   const nativeTokens = ['ETH', 'MATIC', 'AVAX', 'BNB', 'SOL', 'ARB', 'OP', 'BASE']
   if (nativeTokens.includes(token.symbol.toUpperCase())) {
+    return 'low'
+  }
+  
+  // Major stablecoins are always low risk
+  const majorStablecoins = ['USDC', 'USDT', 'DAI', 'USDC.E', 'USDCe', 'USDBC', 'USDE', 'FRAX', 'TUSD', 'USDP', 'PYUSD', 'LUSD', 'GUSD', 'SUSD', 'CRVUSD', 'FDUSD', 'USDS']
+  if (majorStablecoins.includes(token.symbol.toUpperCase())) {
     return 'low'
   }
   

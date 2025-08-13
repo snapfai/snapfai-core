@@ -370,7 +370,8 @@ export async function POST(request: NextRequest) {
       currentChain, // Current connected chain context
       portfolioHoldings, // User's supported portfolio holdings
       portfolioHiddenHoldings, // User's hidden/unsupported holdings
-      portfolioStats // User's portfolio statistics
+      portfolioStats, // User's portfolio statistics
+      portfolioCacheInfo // Portfolio cache metadata
     } = await request.json();
     
     text = promptText; // Store text for potential fallback use
@@ -501,6 +502,9 @@ ${walletInfo.ens ? `- ENS Name: ${walletInfo.ens}` : ''}
 - Total Assets Found: ${totalAllHoldings} (${totalSupportedHoldings} supported + ${totalHiddenHoldings} unsupported)
 - Active Blockchains: ${allChains.size} chains (Multi-chain portfolio)
 - Currently Connected: ${currentChain || 'ethereum'} (but portfolio spans multiple chains)
+- Data Status: ${portfolioCacheInfo?.isFromCache ? `📋 CACHED DATA (${Math.round((portfolioCacheInfo.dataAge || 0) / 60000)}min old) - No new API calls made` : '🔄 FRESH DATA - Just fetched from blockchain'}
+
+⚠️ IMPORTANT: This data shows ALL tokens found in the user's wallet across all supported chains, including native tokens (ETH, MATIC, etc.) and major stablecoins (USDC, USDT, DAI) which are NEVER filtered out.
 
 ✅ SUPPORTED HOLDINGS (SAFE TO TRADE):
 ${portfolioHoldings.map((holding: any, index: number) => 
@@ -539,6 +543,23 @@ ${portfolioHiddenHoldings.map((holding: any, index: number) =>
 - ALWAYS warn about risks when user asks about unsupported tokens  
 - Focus trading suggestions on verified, supported holdings only
 - Explain that unsupported tokens are hidden for safety reasons
+`;
+    } else if (walletInfo && walletInfo.address) {
+      // Wallet connected but no portfolio data fetched yet
+      portfolioContext = `
+🔍 WALLET CONNECTED - PORTFOLIO DATA NOT YET LOADED:
+
+📊 WALLET STATUS:
+- Wallet Address: ${walletInfo.address}
+- Connected Network: ${currentChain || 'ethereum'}
+- Portfolio Status: Not yet analyzed (will be fetched when user asks portfolio-related questions)
+
+💡 IMPORTANT INSTRUCTIONS:
+- If user asks about their portfolio, holdings, balances, or assets, inform them you need to fetch their data first
+- Explain that portfolio data is fetched on-demand to optimize API usage
+- For portfolio-related questions, tell them: "Let me analyze your portfolio across all chains. This will take a moment to fetch your complete holdings..."
+- Do not make assumptions about what tokens they hold
+- Focus on general DeFi guidance until portfolio data is requested and loaded
 `;
     }
 

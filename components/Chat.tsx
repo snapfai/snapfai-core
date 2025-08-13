@@ -393,16 +393,6 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     // Only hide the clicked suggestion
     setVisibleSuggestions(prev => prev.filter(i => i !== index));
     
-    // Check if this is a portfolio-related suggestion and trigger fetch if needed
-    const portfolioKeywords = ['portfolio', 'rebalance', 'yield', 'risks', 'analyze'];
-    const isPortfolioSuggestion = portfolioKeywords.some(keyword => 
-      suggestionText.toLowerCase().includes(keyword)
-    );
-    
-    if (isPortfolioSuggestion && !shouldFetchPortfolio && !portfolioHoldings) {
-      setShouldFetchPortfolio(true);
-    }
-    
     // Focus textarea
     const textarea = document.querySelector('textarea');
     if (textarea) {
@@ -454,9 +444,46 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
   // Get AppKit functions
   const appKit = useAppKit();
   
-  // Portfolio state - only fetch when explicitly requested
+  // Portfolio state - smart caching approach
   const [shouldFetchPortfolio, setShouldFetchPortfolio] = useState(false);
+  const [portfolioLoadingMessageId, setPortfolioLoadingMessageId] = useState<string | null>(null);
+  const [lastPortfolioRequestTime, setLastPortfolioRequestTime] = useState<number>(0);
+  const [pendingPortfolioQuestion, setPendingPortfolioQuestion] = useState<string | null>(null);
   const { holdings: portfolioHoldings, hiddenHoldings: portfolioHiddenHoldings, stats: portfolioStats, isLoading: portfolioLoading } = usePortfolio(shouldFetchPortfolio);
+  
+  // Update portfolio loading message when data is loaded
+  useEffect(() => {
+    if (portfolioLoadingMessageId && !portfolioLoading && shouldFetchPortfolio) {
+      if (portfolioHoldings && portfolioHoldings.length > 0) {
+        // Portfolio data loaded successfully
+        const totalValue = portfolioStats?.totalValue || '$0.00';
+        const totalAssets = portfolioStats?.totalAssets || 0;
+        const activeChains = portfolioStats?.activeChains || 0;
+        
+        updateMessage(
+          portfolioLoadingMessageId, 
+          `✅ Portfolio loaded! I can see your **${totalValue}** portfolio with **${totalAssets} assets** across **${activeChains} ${activeChains === 1 ? 'chain' : 'chains'}**. Now I can provide personalized advice based on your actual holdings.`
+        );
+
+        // If a portfolio-related question triggered this fetch, immediately continue by resubmitting it
+        if (pendingPortfolioQuestion) {
+          const question = pendingPortfolioQuestion;
+          setPendingPortfolioQuestion(null);
+          // next tick to avoid state batching issues
+          setTimeout(() => {
+            handleSendMessage({ message: question, skipUserEcho: true, skipPortfolioPreface: true });
+          }, 0);
+        }
+      } else {
+        // No portfolio data found
+        updateMessage(
+          portfolioLoadingMessageId, 
+          `I've checked your wallet but couldn't find any supported tokens. This might be because:\n\n• You don't have any tokens on the supported chains (Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche)\n• Your tokens are below the minimum threshold\n• Your wallet is empty\n\nFeel free to ask general DeFi questions, or connect a different wallet if needed.`
+        );
+      }
+      setPortfolioLoadingMessageId(null);
+    }
+  }, [portfolioLoading, portfolioHoldings, portfolioStats, portfolioLoadingMessageId, shouldFetchPortfolio, pendingPortfolioQuestion]);
   
   // Reset suggestions when portfolio status changes
   useEffect(() => {
@@ -1146,37 +1173,90 @@ You can click the buttons below or simply type "yes" or "no":`,
   };
 
   // Update handleSendMessage to store swap request
-  const handleSendMessage = async (data: { message: string }) => {
+  const handleSendMessage = async (data: { message: string; skipUserEcho?: boolean; skipPortfolioPreface?: boolean }) => {
     if (isProcessing) return;
     
     const userMessage = data.message.trim();
     if (!userMessage) return;
     
-    // Check if user is asking for portfolio analysis
+    // Enhanced portfolio keyword detection - comprehensive list of portfolio-related terms
     const portfolioKeywords = [
-      'portfolio', 'holdings', 'balance', 'analyze', 'analysis', 
-      'rebalance', 'assets', 'positions', 'my tokens', 'what do i have',
-      'show me my', 'check my', 'review my', 'assess my'
+      // Direct portfolio terms
+      'portfolio', 'holdings', 'balance', 'assets', 'positions', 'wallet',
+      // Analysis terms
+      'analyze', 'analysis', 'review', 'assess', 'check', 'show', 'look at',
+      // Rebalancing terms
+      'rebalance', 'diversify', 'allocation', 'distribution', 'concentration',
+      // Risk terms
+      'risk', 'risky', 'safe', 'dangerous', 'exposure',
+      // Token/coin references
+      'my tokens', 'my coins', 'my crypto', 'my funds', 'my money',
+      'what do i have', 'what i own', 'what i hold',
+      // Specific tokens (when asking about user's holdings)
+      'my eth', 'my bitcoin', 'my usdc', 'my usdt', 'my dai',
+      // Investment terms
+      'investment', 'investments', 'yield', 'earn', 'staking',
+      // Action terms with possessive
+      'should i', 'can i', 'help me', 'recommend'
+    ];
+    
+    const portfolioPatterns = [
+      /\bmy\s+(eth|bitcoin|btc|usdc|usdt|dai|tokens?|coins?|crypto|assets?|holdings?|portfolio|wallet|funds?|money)\b/i,
+      /\b(analyze|review|check|assess|show|rebalance)\s+(my|the)\s+(portfolio|holdings?|assets?|wallet|tokens?|coins?)\b/i,
+      /\bwhat\s+(do\s+i\s+have|i\s+own|i\s+hold|are\s+my)\b/i,
+      /\bshould\s+i\s+(rebalance|diversify|sell|buy|swap|hold)\b/i,
+      /\b(risks?|dangerous|safe)\s+(in\s+my|of\s+my|with\s+my)\b/i
     ];
     
     const isPortfolioRequest = portfolioKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
-    );
-    
-    // Trigger portfolio fetch if needed
-    if (isPortfolioRequest && !shouldFetchPortfolio && !portfolioHoldings) {
-      setShouldFetchPortfolio(true);
-      // Add a message indicating we're fetching portfolio data
-      addMessage('assistant', '📊 Fetching your portfolio data across all chains... This may take a moment.');
-    }
+    ) || portfolioPatterns.some(pattern => pattern.test(userMessage));
     
     // Hide smart suggestions when user sends a message (but keep individual state)
     if (messages.length >= 2) {
       setShowSmartSuggestions(false);
     }
     
-    // Add user message to the chat
-    addMessage('user', userMessage);
+    // Add user message to the chat (unless this is a programmatic re-submit)
+    if (!data.skipUserEcho) {
+      addMessage('user', userMessage);
+    }
+    
+    // Smart portfolio fetch logic - avoid redundant API calls
+    if (isPortfolioRequest) {
+      const now = Date.now();
+      const timeSinceLastRequest = now - lastPortfolioRequestTime;
+      const hasRecentData = portfolioHoldings && portfolioHoldings.length > 0 && timeSinceLastRequest < 5 * 60 * 1000; // 5 minutes
+      
+      if (!hasRecentData && !portfolioLoading) {
+        console.log('🔍 Portfolio request detected, triggering fetch:', userMessage);
+        console.log('📊 Cache status:', { 
+          hasHoldings: !!portfolioHoldings?.length, 
+          timeSinceLastRequest: Math.round(timeSinceLastRequest / 1000) + 's',
+          isLoading: portfolioLoading 
+        });
+        
+        setShouldFetchPortfolio(true);
+        setPendingPortfolioQuestion(userMessage);
+        setLastPortfolioRequestTime(now);
+        
+        // Add preface line, then loading spinner message (appears after user message)
+        if (!data.skipPortfolioPreface) {
+          addMessage('assistant', 'Let me analyze your portfolio across all chains. This will take a moment to fetch your complete holdings...');
+          const loadingMessage = addMessage('assistant', 'Fetching your portfolio data across all chains...', true);
+          setPortfolioLoadingMessageId(loadingMessage.id);
+        }
+        // Defer AI response until portfolio is loaded to avoid duplicate "Thinking..."
+        return;
+      } else if (hasRecentData) {
+        console.log('✅ Using cached portfolio data (fresh within 5 minutes)');
+        // Using cached data: no preface to avoid duplication, proceed directly to answer
+      } else if (portfolioLoading) {
+        console.log('⏳ Portfolio fetch already in progress, waiting...');
+        // Avoid sending an AI request and duplicate "Thinking..." while fetching
+        return;
+      }
+    }
     
     // Track chat interaction
     const startTime = Date.now();
@@ -1254,8 +1334,11 @@ You can use this information to manually submit the transaction through your wal
       return;
     }
     
-    // Add loading message from assistant
-    const loadingMessage = addMessage('assistant', 'Thinking...', true);
+    // Add loading message from assistant (avoid duplicates)
+    let loadingMessage = messages[messages.length - 1];
+    if (!(loadingMessage && loadingMessage.role === 'assistant' && loadingMessage.isLoading)) {
+      loadingMessage = addMessage('assistant', 'Thinking...', true);
+    }
     
     setIsProcessing(true);
     reset();
@@ -1366,10 +1449,16 @@ You can use this information to manually submit the transaction through your wal
           searchSources: useLiveSearch ? selectedSources : null,
           walletInfo: walletInfoData,
           currentChain: getCurrentChainName(), // Add current chain context
-          // Only send portfolio data if it's been fetched and is relevant
-          portfolioHoldings: (shouldFetchPortfolio && portfolioHoldings) ? portfolioHoldings.slice(0, 15) : [], 
-          portfolioHiddenHoldings: (shouldFetchPortfolio && portfolioHiddenHoldings) ? portfolioHiddenHoldings.slice(0, 10) : [],  
-          portfolioStats: (shouldFetchPortfolio && portfolioStats) ? portfolioStats : null
+          // Send portfolio data if available (cached or fresh)
+          portfolioHoldings: (shouldFetchPortfolio && portfolioHoldings) ? portfolioHoldings : [], 
+          portfolioHiddenHoldings: (shouldFetchPortfolio && portfolioHiddenHoldings) ? portfolioHiddenHoldings : [],  
+          portfolioStats: (shouldFetchPortfolio && portfolioStats) ? portfolioStats : null,
+          // Include cache metadata for AI context
+          portfolioCacheInfo: shouldFetchPortfolio ? {
+            lastFetched: lastPortfolioRequestTime,
+            dataAge: Date.now() - lastPortfolioRequestTime,
+            isFromCache: portfolioHoldings && portfolioHoldings.length > 0 && !portfolioLoading
+          } : null
         })
       });
       
@@ -1657,7 +1746,7 @@ Please try again with a supported token symbol or verify the contract address.`,
   const generateWelcomeMessage = () => {
     const currentChain = capitalize(getCurrentChainName());
     const hasWallet = isConnected && address;
-    // Only show portfolio if it's been explicitly fetched
+    // Only show portfolio if it's been fetched and has data
     const hasPortfolio = shouldFetchPortfolio && portfolioHoldings && portfolioHoldings.length > 0;
     const portfolioValue = portfolioStats?.totalValue || '$0.00';
     const totalAssets = portfolioStats?.totalAssets || 0;

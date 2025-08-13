@@ -1,5 +1,5 @@
 import { Alchemy, Network, TokenBalanceType } from 'alchemy-sdk'
-import { type TokenConfig, getNativeToken, isTokenSupported, findTokenByAddress } from './tokens'
+import { type TokenConfig, getNativeToken, isTokenSupported, findTokenByAddress, getTokensForChain } from './tokens'
 import { SUPPORTED_CHAINS } from './chains'
 import { 
   findSpecialTokenByAddress, 
@@ -64,14 +64,32 @@ export const fetchTokenBalancesForChain = async (
   try {
     console.log(`Fetching balances for chain ${chainInfo.name} (${chainId})`)
     
-    // Common token addresses to specifically check
+    // Common token addresses to specifically check (including stablecoins)
     const commonTokens: Record<number, string[]> = {
-      1: ['0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'], // USDC on Ethereum
-      42161: ['0xaf88d065e77c8cC2239327C5EDb3A432268e5831'], // USDC on Arbitrum  
-      8453: ['0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'], // USDC on Base
-      137: ['0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'], // USDC on Polygon
-      10: ['0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'], // USDC on Optimism
+      1: ['0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', '0xdAC17F958D2ee523a2206206994597C13D831ec7'], // USDC, USDT on Ethereum
+      42161: ['0xaf88d065e77c8cC2239327C5EDb3A432268e5831', '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'], // USDC, USDT on Arbitrum  
+      8453: [
+        '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC (native Base USDC)
+        '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA', // USDbC (bridged USDC)
+        '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2'  // USDT
+      ],
+      137: ['0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'], // USDC, USDT on Polygon
+      10: ['0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'], // USDC, USDT on Optimism
     }
+    
+    // Expanded stablecoin support across chains
+    const stablecoinSymbols = [
+      'USDC','USDT','DAI','USDC.E','USDCe','USDbC', // core variations
+      'USDE','FRAX','TUSD','USDP','PYUSD','LUSD','GUSD','SUSD','CRVUSD','FDUSD','USDS'
+    ]
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const stableSet = new Set(stablecoinSymbols.map(normalize))
+    
+    // Add any stablecoins from our token config for this chain to the specific check list
+    const configStableAddresses = getTokensForChain(chainId)
+      .filter(t => stableSet.has(normalize(t.symbol)))
+      .map(t => t.address)
+    
     
     // Get native token balance first
     let nativeTokenHolding: AlchemyTokenHolding | null = null
@@ -115,11 +133,12 @@ export const fetchTokenBalancesForChain = async (
     // Get all ERC20 token balances using Alchemy's API
     const balances = await alchemy.core.getTokenBalances(userAddress, { type: TokenBalanceType.ERC20 })
     
-    // Also get balances for specific common tokens
+    // Also get balances for specific tokens (common + all stables discovered in config)
     let specificTokenBalances = null
-    if (commonTokens[chainId]) {
+    const specificAddresses = Array.from(new Set([...(commonTokens[chainId] || []), ...configStableAddresses]))
+    if (specificAddresses.length > 0) {
       try {
-        specificTokenBalances = await alchemy.core.getTokenBalances(userAddress, commonTokens[chainId])
+        specificTokenBalances = await alchemy.core.getTokenBalances(userAddress, specificAddresses)
         console.log(`Specific token check for chain ${chainId}:`, specificTokenBalances?.tokenBalances?.length || 0)
       } catch (error) {
         console.warn(`Failed to get specific token balances for chain ${chainId}:`, error)
@@ -242,8 +261,8 @@ export const fetchTokenBalancesForChain = async (
         } else if (isSupported) {
           console.log(`✅ Supported token found: ${token.symbol} (${token.address}) on chain ${chainId}`)
         } else {
-          console.log(`🚫 Skipping unsupported token: ${token.symbol} (${token.address}) on chain ${chainId}`)
-          continue
+          // Include unsupported tokens so they can appear under hidden/unsupported holdings
+          console.log(`ℹ️ Including unsupported token for visibility: ${token.symbol} (${token.address}) on chain ${chainId}`)
         }
 
         const holding: AlchemyTokenHolding = {
@@ -434,7 +453,10 @@ async function fetchEnhancedTokenPrices(tokens: TokenHolding[]): Promise<Record<
     "bnb": "binancecoin", "binance coin": "binancecoin",
     "doge": "dogecoin", "dogecoin": "dogecoin",
     "usdt": "tether", "tether": "tether",
-    "usdc": "usd-coin",
+    "usdc": "usd-coin", "usdbc": "usd-coin",
+    "usde": "ethena-usde", "frax": "frax", "tusd": "true-usd", "usdp": "paxos-standard",
+    "pyusd": "paypal-usd", "lusd": "liquity-usd", "gusd": "gemini-dollar", "susd": "nusd",
+    "crvusd": "crvusd", "fdusd": "first-digital-usd", "usds": "usds",
     "ada": "cardano", "cardano": "cardano",
     "dot": "polkadot", "polkadot": "polkadot",
     "matic": "matic-network", "polygon": "matic-network",
@@ -452,7 +474,8 @@ async function fetchEnhancedTokenPrices(tokens: TokenHolding[]): Promise<Record<
     "bnb": "BNBUSDT", "binance coin": "BNBUSDT",
     "doge": "DOGEUSDT", "dogecoin": "DOGEUSDT",
     "usdt": "USDTUSDC", "tether": "USDTUSDC",
-    "usdc": "USDCUSDT",
+    "usdc": "USDCUSDT", "usdbc": "USDCUSDT",
+    // Most stables are not on Binance pairs directly; rely on CoinGecko fallback
     "ada": "ADAUSDT", "cardano": "ADAUSDT",
     "dot": "DOTUSDT", "polkadot": "DOTUSDT",
     "matic": "MATICUSDT", "polygon": "MATICUSDT",
