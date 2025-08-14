@@ -100,6 +100,36 @@ async function testVolumeTracking() {
       console.log('\n✅ All swaps have USD values');
     }
 
+    // 5. Targeted: BRETT/TOSHI on Base
+    console.log('\n5️⃣ Targeted check: BRETT/TOSHI on Base');
+    const { data: targeted, error: targetedError } = await supabase
+      .from('swaps')
+      .select('id, chain_name, status, token_in_symbol, token_out_symbol, token_in_value_usd, created_at, tx_hash')
+      .or('token_in_symbol.eq.BRETT,token_out_symbol.eq.BRETT,token_in_symbol.eq.TOSHI,token_out_symbol.eq.TOSHI')
+      .eq('chain_name', 'base')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (targetedError) {
+      console.error('❌ Error querying targeted swaps:', targetedError);
+    } else {
+      if (!targeted || targeted.length === 0) {
+        console.log('   📝 No BRETT/TOSHI swaps found on Base');
+      } else {
+        const counts = targeted.reduce((acc, s) => {
+          acc[s.status] = (acc[s.status] || 0) + 1;
+          if (s.token_in_value_usd === null) acc.missingUsd = (acc.missingUsd || 0) + 1;
+          return acc;
+        }, {});
+        console.log('   Counts by status:', counts);
+        console.log('   Recent examples:');
+        targeted.slice(0, 5).forEach((s, i) => {
+          console.log(`    ${i+1}. ${s.token_in_symbol} → ${s.token_out_symbol} | ${s.status} | USD=${s.token_in_value_usd}`);
+          console.log(`       ${s.chain_name} | ${new Date(s.created_at).toLocaleString()} | tx=${s.tx_hash ? s.tx_hash.slice(0,12)+'...' : 'N/A'}`);
+        });
+      }
+    }
+
   } catch (error) {
     console.error('❌ Test failed:', error);
   }

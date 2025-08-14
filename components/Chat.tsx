@@ -825,7 +825,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     swapId?: string | null
   ) => {
     let attempts = 0;
-    const maxAttempts = 60; // 60 attempts = ~2 minutes
+		const maxAttempts = 300; // 300 attempts = ~10 minutes to accommodate slower confirmations
     
     const checkStatus = async () => {
       try {
@@ -1791,7 +1791,7 @@ You're connected and ready to explore DeFi! I can help you trade, check prices, 
 
       personalizedContent = `## 🎯 **Ready to Assist You**
 
-**🌟 What I Can Do**
+**🌟 Quick Start**
 - **Instant Swaps**: "Swap 100 USDC to ETH" - I'll guide you through it
 - **Portfolio Analysis**: "Analyze my portfolio" - I'll fetch and analyze your holdings
 - **Market Data**: "What's the price of ETH?" - Real-time prices
@@ -1828,7 +1828,7 @@ Ready to experience the future of DeFi? I'm here to be your personal guide throu
 
 ${personalizedContent}
 
-## 🚀 **What I Can Do**
+## 🚀 **Capabilities**
 
 **🧠 Portfolio Intelligence** • **⚡ Smart Trading** • **📊 Market Analysis** • **🔍 Live Search**
 

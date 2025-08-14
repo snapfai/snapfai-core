@@ -151,6 +151,29 @@ async function testAnalyticsData() {
       console.log(`   ❌ Public API error: ${apiError.message}`);
     }
 
+    // Test 7: Filter swaps for BRETT/TOSHI on Base
+    console.log('\n7️⃣ FILTER: BRETT/TOSHI on Base (recent 20):');
+    const { data: memeSwaps, error: memeError } = await supabase
+      .from('swaps')
+      .select('id, wallet_address, chain_name, token_in_symbol, token_out_symbol, token_in_value_usd, status, created_at, tx_hash')
+      .or('token_in_symbol.eq.BRETT,token_out_symbol.eq.BRETT,token_in_symbol.eq.TOSHI,token_out_symbol.eq.TOSHI')
+      .eq('chain_name', 'base')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (memeError) {
+      console.error('❌ Error:', memeError.message);
+    } else if (!memeSwaps || memeSwaps.length === 0) {
+      console.log('   📝 No BRETT/TOSHI swaps found on Base');
+    } else {
+      memeSwaps.forEach((swap, i) => {
+        console.log(`   ${i+1}. ${swap.token_in_symbol} → ${swap.token_out_symbol} | ${swap.chain_name}`);
+        console.log(`       Status: ${swap.status}, USD: $${swap.token_in_value_usd || 0}`);
+        console.log(`       Tx: ${swap.tx_hash ? swap.tx_hash.slice(0,10)+'...' : 'N/A'} | ${new Date(swap.created_at).toLocaleString()}`);
+        console.log(`       ID: ${swap.id}`);
+      });
+    }
+
   } catch (error) {
     console.error('❌ Unexpected error:', error);
   }
