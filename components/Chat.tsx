@@ -783,6 +783,9 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
   // Add state for showing confirmation buttons
   const [showConfirmationButtons, setShowConfirmationButtons] = useState(false);
   const [confirmationMessageId, setConfirmationMessageId] = useState<string | null>(null);
+  // Portfolio fetch confirmation UI state
+  const [showPortfolioConfirmButtons, setShowPortfolioConfirmButtons] = useState(false);
+  const [portfolioConfirmMessageId, setPortfolioConfirmMessageId] = useState<string | null>(null);
 
   // Helper function to get current chain name from connected network
   const getCurrentChainName = (): string => {
@@ -1179,25 +1182,15 @@ You can click the buttons below or simply type "yes" or "no":`,
     const userMessage = data.message.trim();
     if (!userMessage) return;
     
-    // Enhanced portfolio keyword detection - comprehensive list of portfolio-related terms
+    // Enhanced portfolio keyword detection - focused to avoid false positives
     const portfolioKeywords = [
       // Direct portfolio terms
-      'portfolio', 'holdings', 'balance', 'assets', 'positions', 'wallet',
-      // Analysis terms
-      'analyze', 'analysis', 'review', 'assess', 'check', 'show', 'look at',
-      // Rebalancing terms
-      'rebalance', 'diversify', 'allocation', 'distribution', 'concentration',
-      // Risk terms
-      'risk', 'risky', 'safe', 'dangerous', 'exposure',
-      // Token/coin references
+      'portfolio', 'holdings', 'assets', 'positions', 'balances',
+      // Token/coin references with possessive phrasing
       'my tokens', 'my coins', 'my crypto', 'my funds', 'my money',
       'what do i have', 'what i own', 'what i hold',
       // Specific tokens (when asking about user's holdings)
-      'my eth', 'my bitcoin', 'my usdc', 'my usdt', 'my dai',
-      // Investment terms
-      'investment', 'investments', 'yield', 'earn', 'staking',
-      // Action terms with possessive
-      'should i', 'can i', 'help me', 'recommend'
+      'my eth', 'my bitcoin', 'my usdc', 'my usdt', 'my dai'
     ];
     
     const portfolioPatterns = [
@@ -1220,6 +1213,8 @@ You can click the buttons below or simply type "yes" or "no":`,
     // Add user message to the chat (unless this is a programmatic re-submit)
     if (!data.skipUserEcho) {
       addMessage('user', userMessage);
+      // Clear input ASAP after we receive the user message
+      reset();
     }
     
     // Smart portfolio fetch logic - avoid redundant API calls
@@ -1236,24 +1231,24 @@ You can click the buttons below or simply type "yes" or "no":`,
           isLoading: portfolioLoading 
         });
         
-        setShouldFetchPortfolio(true);
-        setPendingPortfolioQuestion(userMessage);
-        setLastPortfolioRequestTime(now);
-        
-        // Add preface line, then loading spinner message (appears after user message)
-        if (!data.skipPortfolioPreface) {
-          addMessage('assistant', 'Let me analyze your portfolio across all chains. This will take a moment to fetch your complete holdings...');
-          const loadingMessage = addMessage('assistant', 'Fetching your portfolio data across all chains...', true);
-          setPortfolioLoadingMessageId(loadingMessage.id);
-        }
-        // Defer AI response until portfolio is loaded to avoid duplicate "Thinking..."
-        return;
+        // Ask for confirmation before fetching portfolio data (costly action)
+        const confirmMsg = addMessage(
+          'assistant',
+          "I can fetch and analyze your portfolio across all supported chains. This may take a few seconds. Proceed?",
+          false
+        );
+        setPortfolioConfirmMessageId(confirmMsg.id);
+        setShowPortfolioConfirmButtons(true);
+        reset();
+        return; // Wait for user confirmation
       } else if (hasRecentData) {
         console.log('✅ Using cached portfolio data (fresh within 5 minutes)');
         // Using cached data: no preface to avoid duplication, proceed directly to answer
       } else if (portfolioLoading) {
         console.log('⏳ Portfolio fetch already in progress, waiting...');
         // Avoid sending an AI request and duplicate "Thinking..." while fetching
+        // Clear input even if a fetch is already in progress
+        reset();
         return;
       }
     }
@@ -1583,6 +1578,27 @@ You can use this information to manually submit the transaction through your wal
     setPendingSwapRequest(null);
   };
 
+  // Portfolio fetch confirmation handler
+  const handlePortfolioFetchConfirmation = (confirm: boolean) => {
+    if (!portfolioConfirmMessageId) return;
+    if (confirm) {
+      // Trigger the actual portfolio fetch now
+      setShouldFetchPortfolio(true);
+      setLastPortfolioRequestTime(Date.now());
+      if (pendingPortfolioQuestion) {
+        // Preface + loading spinner like before
+        addMessage('assistant', 'Let me analyze your portfolio across all chains. This will take a moment to fetch your complete holdings...');
+        const loadingMessage = addMessage('assistant', 'Fetching your portfolio data across all chains...', true);
+        setPortfolioLoadingMessageId(loadingMessage.id);
+      }
+    } else {
+      addMessage('assistant', "Okay, I'll skip fetching your portfolio for now. You can ask again anytime.");
+      setPendingPortfolioQuestion(null);
+    }
+    setShowPortfolioConfirmButtons(false);
+    setPortfolioConfirmMessageId(null);
+  };
+
   // Helper to capitalize first letter
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -1798,7 +1814,7 @@ You're connected and ready to explore DeFi! I can help you trade, check prices, 
 - **DeFi Insights**: "What's happening in DeFi today?" - Latest trends
 
 **💡 Smart Features**
-- I'll only fetch your portfolio when you ask for analysis (saves API costs)
+- I'll only fetch your portfolio when you ask for analysis
 - Multi-chain support across Ethereum, Arbitrum, Base, Optimism, and Avalanche
 - AI-powered recommendations based on your specific holdings`;
 
@@ -2969,7 +2985,7 @@ Just let me know what you'd prefer!`);
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div 
-                  className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-lg break-words overflow-hidden ${
+                  className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-lg break-words overflow-hidden [word-break:break-word] [overflow-wrap:anywhere] ${
                     message.role === 'user' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
@@ -2982,7 +2998,7 @@ Just let me know what you'd prefer!`);
                     </div>
                   ) : (
                     <>
-                      <div className="prose dark:prose-invert prose-sm max-w-none break-words overflow-wrap-anywhere [&_h1]:text-lg [&_h1]:sm:text-xl [&_h2]:text-base [&_h2]:sm:text-lg [&_h3]:text-sm [&_h3]:sm:text-base [&_p]:text-sm [&_p]:sm:text-base [&_li]:text-sm [&_li]:sm:text-base [&_code]:text-xs [&_code]:sm:text-sm [&_pre]:overflow-x-auto [&_pre]:text-xs [&_pre]:sm:text-sm">
+                      <div className="prose dark:prose-invert prose-sm max-w-none break-words overflow-wrap-anywhere [word-break:break-word] [overflow-wrap:anywhere] [&_a]:break-all [&_code]:break-words [&_h1]:text-lg [&_h1]:sm:text-xl [&_h2]:text-base [&_h2]:sm:text-lg [&_h3]:text-sm [&_h3]:sm:text-base [&_p]:text-sm [&_p]:sm:text-base [&_li]:text-sm [&_li]:sm:text-base [&_code]:text-xs [&_code]:sm:text-sm [&_pre]:overflow-x-auto [&_pre]:text-xs [&_pre]:sm:text-sm">
                         <ReactMarkdown 
                           rehypePlugins={[rehypeRaw]}
                           components={{
@@ -3007,6 +3023,24 @@ Just let me know what you'd prefer!`);
                             className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
                           >
                             ❌ No, Cancel
+                          </Button>
+                        </div>
+                      )}
+                      {/* Show portfolio fetch confirmation buttons */}
+                      {showPortfolioConfirmButtons && portfolioConfirmMessageId === message.id && (
+                        <div className="flex flex-col gap-3 mt-4 mb-2">
+                          <Button 
+                            onClick={() => handlePortfolioFetchConfirmation(true)}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
+                          >
+                            ✅ Yes, fetch my portfolio
+                          </Button>
+                          <Button 
+                            onClick={() => handlePortfolioFetchConfirmation(false)}
+                            variant="outline"
+                            className="w-full border-gray-300 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900/20 font-medium py-3 px-4 rounded-lg transition-colors min-h-[48px] text-sm sm:text-base"
+                          >
+                            ❌ No, maybe later
                           </Button>
                         </div>
                       )}
