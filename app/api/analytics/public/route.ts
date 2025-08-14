@@ -16,20 +16,25 @@ export async function GET(request: NextRequest) {
     
 
 
-    const { count: activeUsersToday } = await supabase
+    // Count DISTINCT active users by period (avoid counting multiple sessions per user)
+    const { data: todaySessions } = await supabase
       .from('sessions')
-      .select('user_id', { count: 'exact', head: true })
+      .select('user_id')
       .gte('created_at', today.toISOString())
 
-    const { count: activeUsersWeek } = await supabase
+    const { data: weekSessions } = await supabase
       .from('sessions')
-      .select('user_id', { count: 'exact', head: true })
+      .select('user_id')
       .gte('created_at', weekAgo.toISOString())
 
-    const { count: activeUsersMonth } = await supabase
+    const { data: monthSessions } = await supabase
       .from('sessions')
-      .select('user_id', { count: 'exact', head: true })
+      .select('user_id')
       .gte('created_at', monthAgo.toISOString())
+
+    const activeUsersToday = new Set((todaySessions || []).map(s => s.user_id).filter(Boolean)).size
+    const activeUsersWeek = new Set((weekSessions || []).map(s => s.user_id).filter(Boolean)).size
+    const activeUsersMonth = new Set((monthSessions || []).map(s => s.user_id).filter(Boolean)).size
 
     // Calculate user growth
     const { count: usersLastWeek } = await supabase
