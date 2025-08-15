@@ -197,38 +197,15 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t py-8 md:py-12 bg-snapfai-sand/30 dark:bg-gray-900 dark:border-gray-800">
         <div className="container">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8">
-            <div className="sm:col-span-2 lg:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
-                <span className="text-lg md:text-xl font-bold dark:text-white">SnapFAI</span>
-              </div>
-              <p className="text-sm md:text-base text-gray-600 dark:text-gray-300 mb-4">AI-powered DeFi for the future of finance</p>
-              <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
-                © {new Date().getFullYear()} SnapFAI. All rights reserved.
-              </p>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Zap className="h-6 w-6 text-snapfai-black dark:text-snapfai-amber" />
+              <span className="text-lg md:text-xl font-bold dark:text-white">SnapFAI</span>
             </div>
-            <div>
-              <h3 className="font-semibold mb-3 md:mb-4 dark:text-white">Product</h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="#features"
-                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
-                  >
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="#how-it-works"
-                    className="text-sm md:text-base text-gray-600 dark:text-gray-300 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors"
-                  >
-                    How It Works
-                  </Link>
-                </li>
-              </ul>
-            </div>
+            <p className="text-sm md:text-base text-gray-600 dark:text-gray-300 mb-4">AI-powered DeFi for the future of finance</p>
+            <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+              © {new Date().getFullYear()} SnapFAI. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>
