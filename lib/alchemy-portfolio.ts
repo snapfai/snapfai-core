@@ -603,6 +603,8 @@ async function fetchBinancePrice(symbol: string, binanceSymbolMap: Record<string
     console.error(`Error fetching price for ${symbol}:`, error)
     return { price: 0, change24h: 0, success: false }
   }
+  
+  return { price: 0, change24h: 0, success: false }
 }
 
 // CoinGecko price fetching (adapted from Snap chat interface)
