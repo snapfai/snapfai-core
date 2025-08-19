@@ -473,8 +473,8 @@ async function fetchEnhancedTokenPrices(tokens: TokenHolding[]): Promise<Record<
     "uni": "UNIUSDT", "uniswap": "UNIUSDT",
     "bnb": "BNBUSDT", "binance coin": "BNBUSDT",
     "doge": "DOGEUSDT", "dogecoin": "DOGEUSDT",
-    "usdt": "USDTUSDC", "tether": "USDTUSDC",
-    "usdc": "USDCUSDT", "usdbc": "USDCUSDT",
+    // Stablecoins - removed USDT/USDC as they're handled specially in the API
+    "usdbc": "USDCUSDT",
     // Most stables are not on Binance pairs directly; rely on CoinGecko fallback
     "ada": "ADAUSDT", "cardano": "ADAUSDT",
     "dot": "DOTUSDT", "polkadot": "DOTUSDT",
@@ -495,6 +495,16 @@ async function fetchEnhancedTokenPrices(tokens: TokenHolding[]): Promise<Record<
     const pricePromises = batch.map(async (token) => {
       try {
         const symbol = token.token.symbol.toLowerCase()
+        
+        // Handle stablecoins directly - they're always $1
+        if (symbol === 'usdt' || symbol === 'usdc' || symbol === 'dai' || symbol === 'busd' || symbol === 'tusd') {
+          console.log(`💵 Stablecoin ${token.token.symbol}: $1.00`)
+          return {
+            symbol: token.token.symbol,
+            price: 1.0,
+            change24h: 0
+          }
+        }
         
         // Try Binance API first for major tokens
         if (binanceSymbolMap[symbol]) {
@@ -565,30 +575,32 @@ async function fetchBinancePrice(symbol: string, binanceSymbolMap: Record<string
   price: number; change24h: number; success: boolean;
 }> {
   try {
-    const binanceSymbol = binanceSymbolMap[symbol]
-    if (!binanceSymbol) {
-      throw new Error(`No Binance symbol mapping found for ${symbol}`)
-    }
+    // Use server-side API to avoid CORS issues
+    const response = await fetch('/api/prices', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ symbols: [symbol] })
+    })
     
-    // Get current price and 24h stats
-    const [priceResponse, statsResponse] = await Promise.all([
-      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`),
-      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`)
-    ])
-    
-    if (priceResponse.ok && statsResponse.ok) {
-      const priceData = await priceResponse.json()
-      const statsData = await statsResponse.json()
+    if (response.ok) {
+      const data = await response.json()
+      const price = data.prices[symbol]
       
-      return {
-        price: parseFloat(priceData.price),
-        change24h: parseFloat(statsData.priceChangePercent),
-        success: true
+      if (price !== null && price !== undefined) {
+        return {
+          price: price,
+          change24h: 0, // We'll need to implement 24h change separately if needed
+          success: true
+        }
       }
     }
     
-    throw new Error(`API error: ${priceResponse.status}/${statsResponse.status}`)
+    // Don't throw error, just return failure - let other tokens continue
+    console.warn(`No price found for ${symbol}, returning 0`)
   } catch (error) {
+    console.error(`Error fetching price for ${symbol}:`, error)
     return { price: 0, change24h: 0, success: false }
   }
 }

@@ -1239,13 +1239,16 @@ You can click the buttons below or simply type "yes" or "no":`,
         );
         setPortfolioConfirmMessageId(confirmMsg.id);
         setShowPortfolioConfirmButtons(true);
+        setPendingPortfolioQuestion(userMessage); // Save the question for later
         reset();
         return; // Wait for user confirmation
       } else if (hasRecentData) {
         console.log('✅ Using cached portfolio data (fresh within 5 minutes)');
-        // Using cached data: no preface to avoid duplication, proceed directly to answer
+        // Using cached data: proceed directly to answer without extra messages
       } else if (portfolioLoading) {
         console.log('⏳ Portfolio fetch already in progress, waiting...');
+        // Show user that we're still fetching
+        addMessage('assistant', '⏳ Still fetching your portfolio data, please wait...');
         // Avoid sending an AI request and duplicate "Thinking..." while fetching
         // Clear input even if a fetch is already in progress
         reset();
@@ -1453,7 +1456,13 @@ You can use this information to manually submit the transaction through your wal
             lastFetched: lastPortfolioRequestTime,
             dataAge: Date.now() - lastPortfolioRequestTime,
             isFromCache: portfolioHoldings && portfolioHoldings.length > 0 && !portfolioLoading
-          } : null
+          } : null,
+          // Send conversation history for context
+          conversationHistory: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp
+          }))
         })
       });
       
@@ -1585,12 +1594,43 @@ You can use this information to manually submit the transaction through your wal
       // Trigger the actual portfolio fetch now
       setShouldFetchPortfolio(true);
       setLastPortfolioRequestTime(Date.now());
-      if (pendingPortfolioQuestion) {
-        // Preface + loading spinner like before
-        addMessage('assistant', 'Let me analyze your portfolio across all chains. This will take a moment to fetch your complete holdings...');
-        const loadingMessage = addMessage('assistant', 'Fetching your portfolio data across all chains...', true);
-        setPortfolioLoadingMessageId(loadingMessage.id);
-      }
+      
+      // Always show progress messages when fetching portfolio
+      const loadingMessage = addMessage('assistant', '⏳ Scanning your wallet across Ethereum, Arbitrum, Base, Polygon, Optimism, and Avalanche...', true);
+      setPortfolioLoadingMessageId(loadingMessage.id);
+      
+      // Add progress updates - use a ref to ensure we can access the message ID
+      const msgId = loadingMessage.id;
+      
+      // Update after 2 seconds
+      setTimeout(() => {
+        setMessages(prev => {
+          const msg = prev.find(m => m.id === msgId);
+          if (msg && msg.isLoading) {
+            return prev.map(m => 
+              m.id === msgId 
+                ? { ...m, content: '📊 Found tokens! Now fetching current prices...' }
+                : m
+            );
+          }
+          return prev;
+        });
+      }, 2000);
+      
+      // Update after 4 seconds
+      setTimeout(() => {
+        setMessages(prev => {
+          const msg = prev.find(m => m.id === msgId);
+          if (msg && msg.isLoading) {
+            return prev.map(m => 
+              m.id === msgId 
+                ? { ...m, content: '💰 Calculating portfolio value and analyzing holdings...' }
+                : m
+            );
+          }
+          return prev;
+        });
+      }, 4000);
     } else {
       addMessage('assistant', "Okay, I'll skip fetching your portfolio for now. You can ask again anytime.");
       setPendingPortfolioQuestion(null);

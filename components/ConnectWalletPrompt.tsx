@@ -118,8 +118,31 @@ export default function ConnectWalletPrompt() {
     setIsWaitingForAuth(true)
     
     try {
-      // Trigger AppKit modal to show SIWE signing
-      await open({ view: 'Account' })
+      // For SIWE to work properly when already connected, we need to force a fresh connection
+      // This ensures the SIWE flow is initiated
+      console.log('🔐 Forcing fresh SIWE authentication flow...')
+      
+      // Clear any existing SIWE session to force re-authentication
+      localStorage.removeItem('siwe-session-id')
+      localStorage.removeItem('siwe-address')
+      localStorage.removeItem('siwe-timestamp')
+      
+      console.log('🧹 Cleared existing SIWE session data')
+      
+      // Open the modal which should now trigger SIWE since no session exists
+      await open()
+      
+      console.log('🔐 SIWE signing modal opened')
+      
+      // Set a timeout to check if authentication completed
+      const authCheckTimeout = setTimeout(() => {
+        if (!isAuthenticated) {
+          console.log('⏰ SIWE signing timeout, checking status...')
+          setIsWaitingForAuth(false)
+        }
+      }, 10000) // 10 second timeout
+      
+      return () => clearTimeout(authCheckTimeout)
     } catch (error) {
       console.error('❌ Error opening sign modal:', error)
       setIsWaitingForAuth(false)

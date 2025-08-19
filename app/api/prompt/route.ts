@@ -108,8 +108,8 @@ const binanceSymbolMap: Record<string, string> = {
   "binance coin": "BNBUSDT",
   "doge": "DOGEUSDT",
   "dogecoin": "DOGEUSDT",
-  "usdt": "USDTUSDC", // Paired with USDC as USDT is the quote currency
-  "tether": "USDTUSDC",
+          "usdt": "USDTUSDT", // USDT paired with itself for stable price
+        "tether": "USDTUSDT",
   "usdc": "USDCUSDT",
   "sui": "SUIUSDT",
   "ada": "ADAUSDT",
@@ -360,6 +360,8 @@ const chain = chainMatch ? chainMatch[1] : (currentChain || 'ethereum');
 
 export async function POST(request: NextRequest) {
   let text = '';
+  let processedHistory: Array<{ role: string; content: string; timestamp?: string | number }> = [];
+  
   try {
     const { 
       text: promptText, 
@@ -371,7 +373,8 @@ export async function POST(request: NextRequest) {
       portfolioHoldings, // User's supported portfolio holdings
       portfolioHiddenHoldings, // User's hidden/unsupported holdings
       portfolioStats, // User's portfolio statistics
-      portfolioCacheInfo // Portfolio cache metadata
+      portfolioCacheInfo, // Portfolio cache metadata
+      conversationHistory // Array of previous messages for context
     } = await request.json();
     
     text = promptText; // Store text for potential fallback use
@@ -388,6 +391,60 @@ export async function POST(request: NextRequest) {
         { error: 'User ID is required' },
         { status: 400 }
       );
+    }
+
+    // Process conversation history to fit within token limits
+    if (conversationHistory && Array.isArray(conversationHistory)) {
+      // Increase token limit significantly to preserve more context
+      const maxTokens = 30000; // Increased from 10000 to preserve more conversation history
+      const maxMessages = 30;   // Increased from 20 to keep more messages
+      
+      // Start with the most recent messages but preserve chronological order
+      const recentMessages = conversationHistory.slice(-maxMessages);
+      
+      let currentTokens = 0;
+      const processedMessages = [];
+      
+      // Process messages in chronological order (oldest first) to maintain context
+      for (let i = 0; i < recentMessages.length; i++) {
+        const message = recentMessages[i];
+        const estimatedTokens = Math.ceil(message.content.length / 4);
+        
+        // If adding this message would exceed token limit, stop
+        if (currentTokens + estimatedTokens > maxTokens) {
+          console.log(`🔍 Token limit reached at message ${i + 1}/${recentMessages.length}`);
+          break;
+        }
+        
+        processedMessages.push(message); // Add to end to maintain chronological order
+        currentTokens += estimatedTokens;
+      }
+      
+      // Use the processed messages in chronological order
+      processedHistory = processedMessages;
+      
+      console.log(`🔍 Conversation history processed:`, {
+        originalCount: conversationHistory.length,
+        processedCount: processedHistory.length,
+        estimatedTokens: currentTokens,
+        maxTokens,
+        sampleMessages: processedHistory.slice(0, 3).map(msg => ({
+          role: msg.role,
+          content: msg.content.substring(0, 100) + '...',
+          timestamp: msg.timestamp
+        })),
+        lastMessages: processedHistory.slice(-3).map(msg => ({
+          role: msg.role,
+          content: msg.content.substring(0, 100) + '...',
+          timestamp: msg.timestamp
+        }))
+      });
+    } else {
+      console.log('⚠️ No conversation history received or invalid format:', {
+        hasHistory: !!conversationHistory,
+        isArray: Array.isArray(conversationHistory),
+        type: typeof conversationHistory
+      });
     }
     
     // Check if this is a price query we can handle directly
@@ -481,6 +538,14 @@ ${walletInfo.ens ? `- ENS Name: ${walletInfo.ens}` : ''}
 
     // Add comprehensive portfolio context if available
     let portfolioContext = '';
+    console.log('🔍 Building portfolio context:', {
+      hasPortfolioHoldings: !!portfolioHoldings,
+      portfolioHoldingsCount: portfolioHoldings?.length || 0,
+      hasPortfolioStats: !!portfolioStats,
+      hasPortfolioHiddenHoldings: !!portfolioHiddenHoldings,
+      portfolioHiddenHoldingsCount: portfolioHiddenHoldings?.length || 0
+    });
+    
     if (portfolioHoldings && portfolioHoldings.length > 0) {
       // Calculate comprehensive portfolio stats
       const totalSupportedHoldings = portfolioHoldings.length;
@@ -564,6 +629,13 @@ ${portfolioHiddenHoldings.map((holding: any, index: number) =>
     }
 
     const fullWalletContext = walletContext + portfolioContext;
+    console.log('🔍 Final wallet context:', {
+      hasWalletContext: !!walletContext,
+      hasPortfolioContext: !!portfolioContext,
+      totalContextLength: fullWalletContext.length,
+      portfolioContextLength: portfolioContext.length
+    });
+    
     if (fullWalletContext) {
       const contextSuffix = `
 When providing responses, you should take this wallet and portfolio information into account:
@@ -575,6 +647,7 @@ When providing responses, you should take this wallet and portfolio information 
 6. SECURITY FIRST: Never recommend trading unsupported/hidden tokens - explain they're hidden for safety
 `;
       walletContext = fullWalletContext + contextSuffix;
+      console.log('✅ Wallet context built successfully, total length:', walletContext.length);
     }
     
     // Define system prompt with current chain context
@@ -583,18 +656,25 @@ When providing responses, you should take this wallet and portfolio information 
       ? `LIVE SEARCH STATE: ENABLED\n- Include an explicit timestamp like "as of ${nowIso}" when presenting time-sensitive data (prices, news, market events)\n- Always provide citations for live content\n- You MAY refer to data as current or real-time (only when Live Search is ON or when using the dedicated price tool)`
       : `LIVE SEARCH STATE: DISABLED\n- DO NOT claim "real-time", "latest", "now", or "updated within the last hour"\n- For time-sensitive requests ("news", "latest", "today", "now", "breaking"), first inform the user Live Search is OFF and suggest enabling it via the toggle\n- You MAY still answer general knowledge questions, but avoid implying recency\n- Exception: Token price questions are handled by our price tool and may be presented as live market data from the stated API source (Binance/CoinGecko) with a timestamp`;
 
-    const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform with COMPLETE PORTFOLIO AWARENESS. 
+    const systemPrompt = `You are the AI agent powering SnapFAI, a specialized DeFi platform with COMPLETE PORTFOLIO AWARENESS and CONVERSATION MEMORY. 
 
 CORE PRINCIPLES:
 - BE DIRECT: Don't explain features that already exist - USE them
 - BE PORTFOLIO-SMART: Always reference user's actual holdings when relevant
 - BE ACTION-ORIENTED: Guide users to immediate actions, not explanations
 - NO REDUNDANT EXPLANATIONS: If user asks about portfolio/balance, use the data you have
+- REMEMBER: You have access to conversation history and should reference previous context when relevant
+- CONVERSATION MEMORY IS CRITICAL: Always check conversation history before responding to maintain context
 
 1. PORTFOLIO-AWARE DeFi Operations:
    - You have REAL-TIME access to user's portfolio - use it instead of asking them to check
    - When user asks "check my USDC balance" → Look at their actual portfolio data and respond with the exact amount
-   - When user says "check my portfolio" → Analyze their actual holdings, don't redirect to portfolio page
+   - When user says "check my portfolio" or "analyze my portfolio" → Provide a COMPREHENSIVE analysis including:
+     * Portfolio overview with total value and performance
+     * Risk assessment (concentration, volatility, diversification)
+     * Chain distribution analysis
+     * Specific recommendations for rebalancing, yield opportunities, or risk management
+     * Highlight any concerning patterns (e.g., over-concentration in single asset)
    - Provide personalized trading advice based on actual holdings and risk levels
    - Parse swap requests by identifying tokenIn, tokenOut, amount, and chain (Ethereum/Arbitrum/Base/Avalanche/Optimism)
    - IMPORTANT: User is currently connected to ${currentChain || 'ethereum'} network - use this as the default chain when not specified
@@ -664,6 +744,16 @@ ${liveSearchInstructions}
 
 ${walletContext}
 
+7. CONVERSATION MEMORY:
+   - You have access to the conversation history and should use it to provide context-aware responses
+   - Reference previous exchanges when relevant (e.g., "As we discussed earlier...", "Based on your previous question about...")
+   - Remember user preferences, names, and context shared in the conversation
+   - Use conversation history to avoid repeating information already provided
+   - If user asks "what did we talk about before?" or similar, reference the conversation context
+   - IMPORTANT: Always check the conversation history before responding to avoid contradicting previous information
+   - If a user asks about something mentioned earlier, reference that specific conversation
+   - Remember names, preferences, and details shared throughout the conversation
+
 FORMAT FOR EXTRACTING SWAP DETAILS:
 - When given "Swap 100 USDT to ETH on Arbitrum" → Extract amount=100, tokenIn=USDT, tokenOut=ETH, chain=Arbitrum
 - When given "Trade 5 ETH for WBTC" → Extract amount=5, tokenIn=ETH, tokenOut=WBTC, chain=Ethereum (default)
@@ -674,6 +764,11 @@ IMPORTANT CONSIDERATIONS:
 - Recognize variant forms like "trade", "convert", "exchange" as equivalent to "swap"
 - Process both token symbols and addresses accurately
 - For news and information requests, provide detailed, accurate responses
+- For portfolio analysis requests (e.g., "analyze my portfolio", "check my holdings", "portfolio review"):
+  * ALWAYS provide a comprehensive analysis using the portfolio data provided
+  * Include specific numbers, percentages, and actionable insights
+  * Don't just list holdings - analyze patterns, risks, and opportunities
+  * Give concrete recommendations based on the user's actual situation
 - Stay up-to-date with the latest DeFi developments
 - Be informative but concise in your responses
 - DOUBLE-CHECK all factual claims, especially statistics and numbers
@@ -686,6 +781,9 @@ RESPONSE STYLE:
 - BE SPECIFIC: "You have 150.5 USDC on Arbitrum" not "You can check your balance"
 - BE ACTIONABLE: "Want to swap some of your 0.0077 ETH?" not "Here's how to swap"
 - USE REAL DATA: Reference their actual token amounts, chains, and values
+- ALWAYS CHECK CONVERSATION HISTORY: Before responding, review what was discussed earlier to maintain context
+- REFERENCE PREVIOUS EXCHANGES: Use phrases like "As we discussed earlier..." or "Based on our previous conversation..."
+- REMEMBER USER DETAILS: Names, preferences, and specific information shared in the conversation
 
 REQUIRED PARAMETERS FOR SWAPS:
 - tokenIn: The token the user wants to swap from (symbol or address)
@@ -736,11 +834,23 @@ For news and information requests, provide direct, informative responses without
     ];
 
     try {
+      // Log what we're sending to the AI
+      console.log('🚀 Sending to AI model:', {
+        model: "grok-4-0709",
+        systemPromptLength: systemPrompt.length,
+        hasWalletContext: systemPrompt.includes('MULTI-CHAIN PORTFOLIO ANALYSIS'),
+        processedHistoryLength: processedHistory.length,
+        userMessage: text,
+        hasTools: !!tools,
+        temperature: 0.2
+      });
+      
       // Call OpenAI API with xAI Live Search parameters
       const response = await openai.chat.completions.create({
-        model: "grok-3-mini",
+          model: "grok-4-0709",
         messages: [
           { role: "system", content: systemPrompt },
+          ...processedHistory,
           { role: "user", content: text }
         ],
         tools: tools,
@@ -815,6 +925,13 @@ For news and information requests, provide direct, informative responses without
 
       // Log the ENTIRE response for debugging
       console.log("FULL xAI API RESPONSE:", JSON.stringify(response, null, 2));
+      
+      // Log the AI's actual response content
+      if (response.choices && response.choices.length > 0 && response.choices[0].message) {
+        const aiResponse = response.choices[0].message.content;
+        console.log("🤖 AI Response Content:", aiResponse);
+        console.log("📏 AI Response Length:", aiResponse?.length || 0);
+      }
 
       // Log the response for debugging
       console.log("xAI Response Message:", JSON.stringify({
@@ -886,7 +1003,9 @@ For news and information requests, provide direct, informative responses without
               chain: args.chain,
               protocol: null // System will determine best protocol
             },
-            message: `I'll help you swap ${args.amount} ${tokenIn.symbol} to ${tokenOut.symbol} on ${args.chain}. Would you like me to check prices?`
+            message: `I'll help you swap ${args.amount} ${tokenIn.symbol} to ${tokenOut.symbol} on ${args.chain}. Would you like me to check prices?`,
+            conversationHistoryUsed: processedHistory.length,
+            conversationTokensUsed: Math.ceil(processedHistory.reduce((total: number, msg: { role: string; content: string }) => total + msg.content.length, 0) / 4)
           });
         }
       }
@@ -1041,7 +1160,9 @@ For news and information requests, provide direct, informative responses without
         type: 'chat',
         message: formattedContent,
         citations: apiResponseCitations,
-        hasLiveSearch: !!useLiveSearch
+        hasLiveSearch: !!useLiveSearch,
+        conversationHistoryUsed: processedHistory.length,
+        conversationTokensUsed: Math.ceil(processedHistory.reduce((total: number, msg: { role: string; content: string }) => total + msg.content.length, 0) / 4)
       });
     } catch (openaiError) {
       console.error('OpenAI API error, using fallback parser:', openaiError);
@@ -1076,7 +1197,9 @@ For news and information requests, provide direct, informative responses without
             protocol: null // System will determine best protocol
           },
           message: `Using fallback parser: I'll help you swap ${amount} ${tokenIn} to ${tokenOut} on ${chain}. Would you like me to check prices?`,
-          fallback: true
+          fallback: true,
+          conversationHistoryUsed: processedHistory.length,
+          conversationTokensUsed: Math.ceil(processedHistory.reduce((total: number, msg: { role: string; content: string }) => total + msg.content.length, 0) / 4)
         });
       } else {
         return NextResponse.json({
@@ -1137,7 +1260,9 @@ For news and information requests, provide direct, informative responses without
               protocol: null // System will determine best protocol
             },
             message: `Using fallback parser: I'll help you swap ${amount} ${tokenIn} to ${tokenOut} on ${chain}. Would you like me to check prices?`,
-            fallback: true
+            fallback: true,
+            conversationHistoryUsed: processedHistory.length,
+            conversationTokensUsed: Math.ceil(processedHistory.reduce((total: number, msg: { role: string; content: string }) => total + msg.content.length, 0) / 4)
           });
         }
       } catch (fallbackError) {
