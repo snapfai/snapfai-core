@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { SWAP_FEE_CONFIG, isFeesEnabled } from "@/lib/config";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,6 +18,19 @@ export async function GET(request: NextRequest) {
       modifiedParams.append('taker', value);
     } else {
       modifiedParams.append(key, value);
+    }
+  }
+  
+  // Automatically add fee parameters for all price requests (10 bps = 0.1%)
+  // Collect fee in the buy token to avoid additional sell-token allowance
+  if (isFeesEnabled()) {
+    const buyToken = searchParams.get('buyToken');
+    if (buyToken) {
+      modifiedParams.append('swapFeeRecipient', SWAP_FEE_CONFIG.RECIPIENT);
+      modifiedParams.append('swapFeeBps', SWAP_FEE_CONFIG.BPS.toString());
+      modifiedParams.append('swapFeeToken', buyToken);
+      
+      console.log(`Added fee parameters to price request: recipient=${SWAP_FEE_CONFIG.RECIPIENT}, bps=${SWAP_FEE_CONFIG.BPS}, token=${buyToken} (buyToken)`);
     }
   }
   
@@ -86,4 +100,6 @@ export async function GET(request: NextRequest) {
       details: "An unexpected error occurred while getting price data",
     }, { status: 500 });
   }
-} 
+}
+
+

@@ -1126,6 +1126,27 @@ Please check manually on [${
         }
       }
       
+      // Extract fee information if available
+      let feeText = '';
+      if (result.fees?.integratorFee) {
+        const feeAmount = result.fees.integratorFee.amount;
+        const feeToken = result.fees.integratorFee.token;
+        const feeBps = result.fees.integratorFee.bps;
+        
+        if (feeAmount && feeToken && feeBps) {
+          // Convert fee amount to human readable format
+          const feeTokenInfo = resolveToken(feeToken, chainId);
+          const feeDecimals = feeTokenInfo?.decimals || 18;
+          const feeAmountHuman = (parseFloat(feeAmount) / Math.pow(10, feeDecimals)).toFixed(6);
+          const feeSymbol = feeTokenInfo?.symbol || 'Unknown';
+          
+          feeText = `\n💰 **Platform Fee:** ${feeAmountHuman} ${feeSymbol} (${feeBps / 100}%)`;
+        }
+      } else {
+        // Show default fee information even if not returned by API
+        feeText = `\n💰 **Platform Fee:** 0.1% (10 bps)`;
+      }
+      
       // Add custom token warning if either token is custom
       const isCustomTokenIn = !resolveToken(tokenIn, chainId);
       const isCustomTokenOut = !resolveToken(tokenOut, chainId);
@@ -1141,7 +1162,7 @@ Please check manually on [${
 **You're about to swap:**
 - **From:** ${amount} ${sellTokenInfo.symbol} ${sellTokenInfo.name ? `(${sellTokenInfo.name})` : ''}
 - **To:** ~${formattedBuyAmount} ${buyTokenInfo.symbol} ${buyTokenInfo.name ? `(${buyTokenInfo.name})` : ''}
-- **Network:** ${chain}${priceText}${sourceText}${customTokenWarning}
+- **Network:** ${chain}${priceText}${sourceText}${feeText}${customTokenWarning}
 
 **Ready to execute this swap?**
 

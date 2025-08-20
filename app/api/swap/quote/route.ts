@@ -1,16 +1,17 @@
 import { type NextRequest } from "next/server";
+import { SWAP_FEE_CONFIG, isFeesEnabled } from "@/lib/config";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  
+
   // Clone the search params and modify as needed
   const modifiedParams = new URLSearchParams();
-  
+
   // Validate the chainId (default to 1 if not provided)
   if (!searchParams.has('chainId')) {
     modifiedParams.append('chainId', '1'); // Default to Ethereum mainnet
   }
-  
+
   // Convert takerAddress to taker if present (0x API requires "taker" not "takerAddress")
   for (const [key, value] of searchParams.entries()) {
     if (key === 'takerAddress') {
@@ -19,11 +20,28 @@ export async function GET(request: NextRequest) {
       modifiedParams.append(key, value);
     }
   }
-  
+
+  // Automatically add fee parameters for all swaps (10 bps = 0.1%)
+  // Collect fee in the buy token to avoid additional sell-token allowance
+  const alreadyHasFeeParams =
+    searchParams.has('swapFeeRecipient') &&
+    searchParams.has('swapFeeBps') &&
+    searchParams.has('swapFeeToken');
+
+  if (isFeesEnabled() && !alreadyHasFeeParams) {
+    const buyToken = searchParams.get('buyToken');
+    if (buyToken) {
+      modifiedParams.append('swapFeeRecipient', SWAP_FEE_CONFIG.RECIPIENT);
+      modifiedParams.append('swapFeeBps', SWAP_FEE_CONFIG.BPS.toString());
+      modifiedParams.append('swapFeeToken', buyToken);
+
+      console.log(`Added fee parameters: recipient=${SWAP_FEE_CONFIG.RECIPIENT}, bps=${SWAP_FEE_CONFIG.BPS}, token=${buyToken} (buyToken)`);
+    }
+  }
+
   const apiUrl = `https://api.0x.org/swap/allowance-holder/quote?${modifiedParams.toString()}`;
 
   try {
-    
     const res = await fetch(apiUrl, {
       headers: {
         "Content-Type": "application/json",
@@ -53,7 +71,6 @@ export async function GET(request: NextRequest) {
 
     // More lenient check - just ensure we have some data to return
     if (data && typeof data === 'object') {
-      
       // Extract important fields from the response
       const responseData = {
         // If the data has a transaction field, use its structure, otherwise use the top-level fields
@@ -75,26 +92,26 @@ export async function GET(request: NextRequest) {
         buyAmount: data.buyAmount,
         sellAmount: data.sellAmount,
         sources: data.sources,
-        // Include Permit2 data if available
-        permit2: data.permit2
-      };
-      
+        // Include extras if available
+        permit2: data.permit2,
+        fees: data.fees,
+        route: data.route,
+      } as any;
+
       // Log transaction data details
-      if (responseData.transaction.data) {
-        console.log('Transaction data details:', {
-          to: responseData.transaction.to,
-          dataLength: responseData.transaction.data.length,
-          dataStartsWith: responseData.transaction.data.substring(0, 10),
-          dataEndsWith: responseData.transaction.data.substring(responseData.transaction.data.length - 10),
-          hasPermit2: !!responseData.permit2
-        });
+      if (responseData.transaction?.data) {
+        try {
+          console.log('Transaction data details:', {
+            to: responseData.transaction.to,
+            dataLength: responseData.transaction.data.length,
+            dataStartsWith: responseData.transaction.data.substring(0, 10),
+            dataEndsWith: responseData.transaction.data.substring(responseData.transaction.data.length - 10),
+            hasPermit2: !!responseData.permit2,
+          });
+        } catch {}
       }
-      
-      // Return success with the expected format
-      return Response.json({
-        success: true,
-        data: responseData,
-      });
+
+      return Response.json({ success: true, data: responseData });
     } else {
       console.error("0x API returned unexpected data structure:", data);
       return Response.json({
@@ -111,4 +128,6 @@ export async function GET(request: NextRequest) {
       details: "An unexpected error occurred while getting quote data",
     }, { status: 500 });
   }
-} 
+}
+
+

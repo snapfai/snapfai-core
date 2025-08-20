@@ -134,6 +134,11 @@ export const getSwapQuote = async (params: {
       }
     }
     
+    // Add fee parameters for 10 bps (0.1%) fee
+    // These will be handled by the API route
+    // Note: Fee parameters are now handled server-side in the API route
+    // The client just needs to pass the request and the API will add the fees
+    
     console.log(`Calling quote API: /api/swap/quote?${searchParams.toString()}`);
     
     const response = await fetch(`/api/swap/quote?${searchParams.toString()}`);

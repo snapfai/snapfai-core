@@ -28,6 +28,7 @@ SnapFAI is a revolutionary interaction layer that transforms how you engage with
 - **Slippage Protection**: Automatic slippage management for optimal trade execution
 - **Real-time Quotes**: Live pricing and swap quotes with 500ms debounced updates
 - **Gas Optimization**: Smart gas estimation and optimization
+- **Platform Fees**: 10 bps (0.1%) fee system for sustainable platform monetization
 
 ### 🔐 Advanced Wallet & Authentication
 - **AppKit Integration**: Multi-wallet support (MetaMask, WalletConnect, Coinbase Wallet, etc.)
@@ -175,6 +176,35 @@ npm run dev
 # Price with 24h change
 "ETH price with daily change"
 ```
+
+## 💰 Monetization
+
+### Platform Fees
+SnapFAI includes a sustainable monetization model through platform fees:
+
+- **Fee Rate**: 10 basis points (0.1%) on all swaps
+- **Collection Method**: Fees are collected in the token being sold
+- **Transparency**: Users are always informed about fees before executing swaps
+- **Competitive**: 0.1% is competitive with other DEX aggregators
+
+### Revenue Streams
+1. **Swap Fees**: Primary revenue from trading volume
+2. **Volume-Based**: Higher trading volume = higher fee revenue
+3. **Token Diversity**: Fees collected in various tokens for portfolio diversification
+
+### Setup
+To enable fee collection, add these environment variables:
+
+```bash
+# Default: fees will be sent to 0x12a377514F19Af5A626Bb6250065673874c708aB
+# Custom: set your own wallet address
+SWAP_FEE_RECIPIENT=your_wallet_address_here
+SWAP_FEE_BPS=10
+```
+
+**Note**: If you don't set `SWAP_FEE_RECIPIENT`, fees will automatically be collected and sent to the default address. You can override this by setting your own wallet address.
+
+See [SWAP_FEE_SETUP.md](docs/SWAP_FEE_SETUP.md) for detailed configuration instructions.
 
 ## 🏗 Architecture
 
