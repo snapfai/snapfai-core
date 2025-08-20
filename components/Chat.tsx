@@ -3163,7 +3163,7 @@ Just let me know what you'd prefer!`);
             <div className="flex-1 relative">
               <Textarea
                 {...register('message', { required: true })}
-                placeholder="Try: Swap 0.1 ETH to USDC..."
+                placeholder="Try: Swap 100 USDC to ETH..."
                 className="min-h-[48px] md:min-h-[50px] flex-1 resize-none pr-12 md:pr-4 text-base md:text-sm rounded-xl"
                 disabled={isProcessing}
                 onKeyDown={(e) => {
