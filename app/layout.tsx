@@ -11,7 +11,12 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata = {
   title: "SnapFAI - Your Smart, Easy, and Magical DeFi Experience",
   description:
-    "SnapFAI is a revolutionary interaction layer that transforms how you engage with decentralized finance (DeFi). Powered by conversational AI and real-time data aggregation."
+    "SnapFAI is a revolutionary interaction layer that transforms how you engage with decentralized finance (DeFi). Powered by conversational AI and real-time data aggregation.",
+  icons: {
+    icon: '/images/SnapFAI_Logo.png',
+    shortcut: '/images/SnapFAI_Logo.png',
+    apple: '/images/SnapFAI_Logo.png',
+  },
 }
 
 export default async function RootLayout({

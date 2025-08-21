@@ -38,7 +38,11 @@ const Header = () => {
               <div className="flex items-center justify-between mb-6">
                 <SheetClose asChild>
                   <Link href="/" className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
+                    <img 
+                      src="/images/SnapFAI_Logo.png" 
+                      alt="SnapFAI" 
+                      className="h-5 w-auto"
+                    />
                     <span className="font-bold text-lg md:text-xl">SnapFAI</span>
                     <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
                   </Link>
@@ -81,7 +85,7 @@ const Header = () => {
                   </Link>
                 </SheetClose>
                 <SheetClose asChild>
-                  <Link href="https://docs.snapfai.com/" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
+                  <Link href="https://docs.snapfai.com/" target="_blank" rel="noopener noreferrer" className="text-base md:text-lg font-medium py-2 hover:text-snapfai-black dark:hover:text-snapfai-amber transition-colors">
                     Docs
                   </Link>
                 </SheetClose>
@@ -90,7 +94,11 @@ const Header = () => {
           </Sheet>
           
           <Link href="/" className="flex items-center gap-2">
-            <Zap className="h-5 w-5 md:h-6 md:w-6 text-snapfai-black dark:text-snapfai-amber" />
+            {/* <img 
+              src="/images/SnapFAI_Logo.png" 
+              alt="SnapFAI" 
+              className="h-6 w-auto"
+            /> */}
             <span className="font-bold text-lg md:text-xl">SnapFAI</span>
             <span className="text-xs bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black px-2 py-0.5 rounded-full">Alpha</span>
           </Link>
@@ -111,7 +119,7 @@ const Header = () => {
             <BarChart3 className="h-4 w-4" />
             Stats
           </Link>
-          <Link href="https://docs.snapfai.com/" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
+          <Link href="https://docs.snapfai.com/" target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:text-snapfai-black dark:text-gray-300 dark:hover:text-snapfai-amber transition-colors">
             Docs
           </Link>
         </nav>
