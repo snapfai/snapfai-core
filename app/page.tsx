@@ -86,6 +86,38 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Partner Badges Section */}
+        <section className="py-8 md:py-12 bg-white dark:bg-gray-900">
+          <div className="container">
+            <div className="text-center mb-6 md:mb-8">
+              <h2 className="text-lg md:text-xl lg:text-xl font-bold mb-4 dark:text-white">Supported by</h2>
+            </div>
+            <div className="flex overflow-x-auto gap-6 md:gap-8 pb-4 md:pb-0 scrollbar-hide justify-center">
+              <div className="flex-none flex justify-center">
+                {/* Google for Startups Badge */}
+                <div className="bg-white rounded-lg shadow-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow duration-300">
+                  <img 
+                    src="/images/startups_gpxYjQP.max-2500x2500.jpg" 
+                    alt="Google for Startups" 
+                    className="h-16 md:h-20 object-contain"
+                  />
+                </div>
+              </div>
+
+              <div className="flex-none flex justify-center">
+                {/* NVIDIA Inception Program Badge */}
+                <div className="bg-white rounded-lg shadow-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow duration-300">
+                  <img 
+                    src="/images/nvidia-inception-logo.png" 
+                    alt="NVIDIA Inception Program" 
+                    className="h-16 md:h-20 object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Slogan Section */}
         <section className="py-8 md:py-12 bg-snapfai-black text-white dark:bg-snapfai-amber dark:text-snapfai-black">
           <div className="container text-center">
