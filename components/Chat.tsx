@@ -2116,9 +2116,21 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
             priceFetcher.calculateUSDValue(tokenIn, amount, sellTokenInfo?.address),
             priceFetcher.calculateUSDValue(tokenOut, parseFloat(formattedBuyAmount), buyTokenInfo?.address)
           ]);
-          
-          const estimatedValueUsd = tokenInPrice.usdValue;
-          const estimatedOutValueUsd = tokenOutPrice.usdValue;
+
+          // Prefer the side with a reliable price source at this timestamp
+          const usdIn = tokenInPrice.usdValue;
+          const usdOut = tokenOutPrice.usdValue;
+          const srcIn = tokenInPrice.source;
+          const srcOut = tokenOutPrice.source;
+          const isGood = (usd: number, src: string) => usd > 0 && src !== 'backup';
+
+          const lockedTokenInUsd = isGood(usdIn, srcIn)
+            ? usdIn
+            : (isGood(usdOut, srcOut) ? usdOut : (usdIn || usdOut || 0));
+
+          const lockedTokenOutUsd = isGood(usdOut, srcOut)
+            ? usdOut
+            : (isGood(usdIn, srcIn) ? usdIn : (usdOut || usdIn || 0));
           
 
           
@@ -2130,11 +2142,11 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
             tokenInSymbol: tokenIn,
             tokenInAddress: sellTokenInfo?.address || '',
             tokenInAmount: amount.toString(),
-            tokenInValueUsd: estimatedValueUsd,
+            tokenInValueUsd: lockedTokenInUsd,
             tokenOutSymbol: tokenOut,
             tokenOutAddress: buyTokenInfo?.address || '',
             tokenOutAmount: formattedBuyAmount,
-            tokenOutValueUsd: estimatedOutValueUsd,
+            tokenOutValueUsd: lockedTokenOutUsd,
             txHash: tx,
             status: 'pending',
             protocol: '0x',
