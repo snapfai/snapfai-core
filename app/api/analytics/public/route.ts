@@ -89,26 +89,79 @@ export async function GET(request: NextRequest) {
 
     for (const day of last7Days) {
       const dayData = dailyData?.filter(d => d.day === day) || []
-      let users = dayData.find(d => d.metric_key === 'users_new')?.value || 0
+      let users = dayData.find(d => d.metric_key === 'users_active')?.value || 0
       let swaps = dayData.find(d => d.metric_key === 'swaps')?.value || 0
       let volume = dayData.find(d => d.metric_key === 'volume_usd')?.value || 0
 
       // Fallback to live counting if daily aggregates are empty
       if (users === 0) {
-        const { count: dayUsers } = await supabase
+        // Count ALL active users for the day (not just new users)
+        // This includes users who connected, swapped, or chatted today
+        const { data: activeUsersToday } = await supabase
           .from('users')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', day + 'T00:00:00Z')
-          .lt('created_at', day + 'T23:59:59Z')
-        users = dayUsers || 0
+          .select('id')
+          .or(`id.in.(${
+            // Users with sessions today
+            supabase
+              .from('sessions')
+              .select('user_id')
+              .gte('created_at', day + 'T00:00:00Z')
+              .lt('created_at', day + 'T23:59:59Z')
+              .toString()
+          }),id.in.(${
+            // Users with swaps today
+            supabase
+              .from('swaps')
+              .select('user_id')
+              .gte('created_at', day + 'T00:00:00Z')
+              .lt('created_at', day + 'T23:59:59Z')
+              .toString()
+          }),id.in.(${
+            // Users with chat interactions today
+            supabase
+              .from('chat_interactions')
+              .select('user_id')
+              .gte('created_at', day + 'T00:00:00Z')
+              .lt('created_at', day + 'T23:59:59Z')
+              .toString()
+          })`)
         
-        // Populate daily aggregates
+        // Count unique active users
+        users = new Set(activeUsersToday?.map(u => u.id)).size || 0
+        
+        // Populate daily aggregates for active users
         await supabase
           .from('analytics_daily')
           .upsert({
             day,
-            metric_key: 'users_new',
+            metric_key: 'users_active', // Active users for the day
             value: users,
+            updated_at: new Date().toISOString()
+          })
+      }
+
+      // Also track new users for growth percentage calculation
+      const { data: newUsersData } = await supabase
+        .from('analytics_daily')
+        .select('value')
+        .eq('day', day)
+        .eq('metric_key', 'users_new')
+      
+      if (!newUsersData || newUsersData.length === 0) {
+        // Count new users (users created today)
+        const { count: newUsersToday } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', day + 'T00:00:00Z')
+          .lt('created_at', day + 'T23:59:59Z')
+        
+        // Populate daily aggregates for new users
+        await supabase
+          .from('analytics_daily')
+          .upsert({
+            day,
+            metric_key: 'users_new', // New users for the day
+            value: newUsersToday || 0,
             updated_at: new Date().toISOString()
           })
       }
@@ -158,7 +211,7 @@ export async function GET(request: NextRequest) {
 
       dailyGrowth.push({
         date: day,
-        users: Number(users),
+        users: Number(users), // Active users for the day (displayed in 7-day growth trend)
         swaps: Number(swaps),
         volume: Number(volume)
       })
@@ -173,7 +226,7 @@ export async function GET(request: NextRequest) {
     const { data: activeUsersData } = await supabase
       .from('analytics_daily')
       .select('day, value')
-      .eq('metric_key', 'active_users')
+      .eq('metric_key', 'users_active') // Changed from 'active_users' to 'users_active'
       .gte('day', weekAgo)
 
     const activeUsersToday = activeUsersData?.find(d => d.day === today)?.value || 0
@@ -184,7 +237,7 @@ export async function GET(request: NextRequest) {
     const { data: weekAgoUsers } = await supabase
       .from('analytics_daily')
       .select('value')
-      .eq('metric_key', 'users_new')
+      .eq('metric_key', 'users_new') // Use new users for growth percentage
       .lt('day', weekAgo)
 
     const usersLastWeek = weekAgoUsers?.reduce((sum, d) => sum + Number(d.value), 0) || 0
