@@ -65,6 +65,16 @@ export const ChainIcon: React.FC<ChainIconProps> = ({ chainId, className = '', s
         </svg>
       );
     
+    case 56: // Binance Smart Chain
+      return (
+        <svg style={iconStyle} className={className} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="16" fill="#F3BA2F"/>
+          <path d="M12.116 14.404L16 10.52L19.884 14.404L16 18.288L12.116 14.404Z" fill="white"/>
+          <path d="M9.88 12.168L13.764 8.284L17.648 12.168L13.764 16.052L9.88 12.168Z" fill="white"/>
+          <path d="M14.116 9.932L18 6.048L21.884 9.932L18 13.816L14.116 9.932Z" fill="white"/>
+        </svg>
+      );
+    
     case 137: // Polygon
       return (
         <svg style={iconStyle} className={className} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -107,6 +117,7 @@ export const getChainName = (chainId: number): string => {
     case 8453: return 'Base';
     case 10: return 'Optimism';
     case 43114: return 'Avalanche';
+    case 56: return 'Binance Smart Chain';
     case 137: return 'Polygon';
     case 11155111: return 'Sepolia';
     default: return 'Unknown';
@@ -120,6 +131,7 @@ export const getChainShortName = (chainId: number): string => {
     case 8453: return 'BASE';
     case 10: return 'OP';
     case 43114: return 'AVAX';
+    case 56: return 'BSC';
     case 137: return 'MATIC';
     case 11155111: return 'SEP';
     default: return '?';

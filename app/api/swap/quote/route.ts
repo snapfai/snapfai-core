@@ -4,6 +4,13 @@ import { SWAP_FEE_CONFIG, isFeesEnabled } from "@/lib/config";
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
+  // Debug logging for BSC swaps
+  const chainId = searchParams.get('chainId');
+  if (chainId === '56') {
+    console.log('🔍 BSC API Route Debug:');
+    console.log('  - Original searchParams:', Object.fromEntries(searchParams.entries()));
+  }
+
   // Clone the search params and modify as needed
   const modifiedParams = new URLSearchParams();
 
@@ -40,6 +47,13 @@ export async function GET(request: NextRequest) {
   }
 
   const apiUrl = `https://api.0x.org/swap/allowance-holder/quote?${modifiedParams.toString()}`;
+  
+  // Debug logging for BSC swaps
+  if (chainId === '56') {
+    console.log('🔍 BSC 0x API Call Debug:');
+    console.log('  - Modified params:', Object.fromEntries(modifiedParams.entries()));
+    console.log('  - Full 0x API URL:', apiUrl);
+  }
 
   try {
     const res = await fetch(apiUrl, {
@@ -51,6 +65,17 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
+      // Enhanced error logging for BSC
+      if (chainId === '56') {
+        console.error('🔍 BSC 0x API Error Response:');
+        console.error('  - Status:', res.status);
+        console.error('  - Status Text:', res.statusText);
+        console.error('  - Headers:', Object.fromEntries(res.headers.entries()));
+      }
+      
+      const errorText = await res.text();
+      console.error('0x API error response:', errorText);
+      
       return Response.json({
         success: false,
         error: `0x API returned status ${res.status}`,

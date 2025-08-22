@@ -5,7 +5,7 @@ import type {
 } from "@reown/appkit-siwe";
 import { createSIWEConfig, formatMessage } from "@reown/appkit-siwe";
 import { mainnet } from "@reown/appkit/networks";
-import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from "@/config/custom-networks";
+import { arbitrumOneChain, baseChain, optimismChain, avalancheChain, bscChain } from "@/config/custom-networks";
 
 // Global state for authentication
 let globalAuthState = {
@@ -20,7 +20,7 @@ export const siweConfig = createSIWEConfig({
     domain: typeof window !== "undefined" ? window.location.host : "",
     uri: typeof window !== "undefined" ? window.location.origin : "",
     // Include all supported chains but don't restrict session validation to specific chains
-    chains: [mainnet.id, arbitrumOneChain.id, baseChain.id, optimismChain.id, avalancheChain.id],
+    chains: [mainnet.id, arbitrumOneChain.id, baseChain.id, optimismChain.id, avalancheChain.id, bscChain.id, 137], // Added BSC (56) and Polygon (137)
     statement: "Welcome to SnapFAI!\n\nSign this message to securely connect your wallet and access DeFi features across all supported networks. This signature proves you own this wallet address without any gas fees.",
     version: "1",
   }),

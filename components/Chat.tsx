@@ -38,14 +38,16 @@ const SmartSuggestions = ({
   portfolioHoldings,
   onSuggestionClick, 
   visibleSuggestions,
-  onDismissSuggestion
+  onDismissSuggestion,
+  caipNetwork
 }: { 
   isConnected: boolean, 
   hasPortfolio: boolean, 
   portfolioHoldings: any[] | null,
   onSuggestionClick: (text: string, index: number) => void,
   visibleSuggestions: number[],
-  onDismissSuggestion: (index: number) => void
+  onDismissSuggestion: (index: number) => void,
+  caipNetwork: any
 }) => {
   const portfolioSuggestions = [
     { icon: "📊", text: "Analyze my portfolio" },
@@ -55,7 +57,7 @@ const SmartSuggestions = ({
   ];
 
   const basicSuggestions = [
-    { icon: "💰", text: "What's the price of ETH?" },
+    { icon: "💰", text: `What's the price of ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}?` },
     { icon: "🔄", text: "How do I swap tokens?" },
     { icon: "📈", text: "What's happening in DeFi today?" },
     { icon: "🔗", text: "Explain different blockchain networks" }
@@ -377,6 +379,9 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     news: true,
     x: true
   });
+  
+
+  
   // Store the last transaction data for user requests
   const [lastTransactionData, setLastTransactionData] = useState<any>(null);
   
@@ -797,6 +802,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
     // Map chain IDs to chain names
     const chainIdToName: Record<number, string> = {
       1: 'ethereum',
+      56: 'bsc', // Added BSC support
       42161: 'arbitrum',
       8453: 'base',
       137: 'polygon',
@@ -847,6 +853,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
             if (c.includes('base')) return 'base';
             if (c.includes('polygon')) return 'polygon';
             if (c.includes('avalanche')) return 'avalanche';
+            if (c.includes('bsc')) return 'bsc'; // Added BSC support
             return '';
           };
           const normalizedChain = normalizeChain(chain);
@@ -858,6 +865,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
             normalizedChain === 'base' ? `https://basescan.org/tx/${txHash}` :
             normalizedChain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
             normalizedChain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+            normalizedChain === 'bsc' ? `https://bscscan.com/tx/${txHash}` : // Added BSC support
             `#`;
 
           const explorerName = 
@@ -867,6 +875,7 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
             normalizedChain === 'base' ? 'Basescan' :
             normalizedChain === 'polygon' ? 'Polygonscan' :
             normalizedChain === 'avalanche' ? 'Snowtrace' :
+            normalizedChain === 'bsc' ? 'BscScan' : // Added BSC support
             'block explorer';
           
           if (receipt.status === '0x1') {
@@ -955,6 +964,7 @@ You can check the status manually on [${
               chain === 'base' ? 'Basescan' :
               chain === 'polygon' ? 'Polygonscan' :
               chain === 'avalanche' ? 'Snowtrace' :
+              chain === 'bsc' ? 'BscScan' : // Added BSC support
               'block explorer'
             }](${
               chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
@@ -963,6 +973,7 @@ You can check the status manually on [${
               chain === 'base' ? `https://basescan.org/tx/${txHash}` :
               chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
               chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+              chain === 'bsc' ? `https://bscscan.com/tx/${txHash}` : // Added BSC support
               `#`
             })`
           );
@@ -987,6 +998,7 @@ Please check manually on [${
               chain === 'base' ? 'Basescan' :
               chain === 'polygon' ? 'Polygonscan' :
               chain === 'avalanche' ? 'Snowtrace' :
+              chain === 'bsc' ? 'BscScan' : // Added BSC support
               'block explorer'
             }](${
               chain === 'ethereum' ? `https://etherscan.io/tx/${txHash}` : 
@@ -995,6 +1007,7 @@ Please check manually on [${
               chain === 'base' ? `https://basescan.org/tx/${txHash}` :
               chain === 'polygon' ? `https://polygonscan.com/tx/${txHash}` :
               chain === 'avalanche' ? `https://snowtrace.io/tx/${txHash}` :
+              chain === 'bsc' ? `https://bscscan.com/tx/${txHash}` : // Added BSC support
               `#`
             })`
           );
@@ -1914,9 +1927,9 @@ ${hasWallet ? `
 ${hasPortfolio ? `- "Analyze my portfolio" - Get detailed insights about your holdings
 - "Should I rebalance?" - Personalized rebalancing recommendations  
 - "Find yield opportunities" - Discover earning potential for your tokens
-- "What are my risks?" - Portfolio-specific risk assessment` : `- "Swap 100 USDC to ETH" - Safe, guided token swapping
-- "What's the price of ETH?" - Real-time market data
-- "How do I start with DeFi?" - Beginner-friendly guidance`}` : `- "What's the price of ETH?" - Live market data
+- "What are my risks?" - Portfolio-specific risk assessment` : `- "Swap 100 USDC to ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}" - Safe, guided token swapping
+- "What's the price of ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}?" - Real-time market data
+- "How do I start with DeFi?" - Beginner-friendly guidance`}` : `- "What's the price of ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}?" - Live market data
 - "Explain DeFi to me" - Learn the fundamentals
 - "What's happening in crypto today?" - Latest news and trends`}
 
@@ -2014,28 +2027,32 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
               errorMessage: err?.message,
               errorData: err?.data,
               errorReason: err?.reason,
-              errorType: typeof err
+              errorType: typeof err,
+              errorStringified: JSON.stringify(err, Object.getOwnPropertyNames(err))
             });
             
-            // Enhanced rejection detection
+            // Enhanced rejection detection with fallback for empty error objects
+            const errorMessage = err?.message || err?.reason || err?.data || '';
+            const errorCode = err?.code;
+            
             const isUserRejection = 
-              err?.code === 4001 || // Standard MetaMask rejection code
-              (typeof err?.message === 'string' && (
-                err.message.includes('User denied') || 
-                err.message.includes('User rejected') ||
-                err.message.includes('user rejected') ||
-                err.message.includes('user denied') ||
-                err.message.includes('rejected') ||
-                err.message.includes('cancelled') ||
-                err.message.includes('canceled')
+              errorCode === 4001 || // Standard MetaMask rejection code
+              (typeof errorMessage === 'string' && (
+                errorMessage.includes('User denied') || 
+                errorMessage.includes('User rejected') ||
+                errorMessage.includes('user rejected') ||
+                errorMessage.includes('user denied') ||
+                errorMessage.includes('rejected') ||
+                errorMessage.includes('cancelled') ||
+                errorMessage.includes('canceled')
               ));
             
             // Check for allowance-related errors
             const isAllowanceError = 
-              (typeof err?.message === 'string' && (
-                err.message.includes('TRANSFER_FROM_FAILED') ||
-                err.message.includes('allowance') ||
-                err.message.includes('insufficient allowance')
+              (typeof errorMessage === 'string' && (
+                errorMessage.includes('TRANSFER_FROM_FAILED') ||
+                errorMessage.includes('allowance') ||
+                errorMessage.includes('insufficient allowance')
               )) ||
               (typeof err?.data === 'string' && (
                 err.data.includes('#1002') ||
@@ -2057,6 +2074,14 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
               throw allowanceError; // Re-throw to be handled by outer catch
             }
             
+            // If we have an empty error object, create a more informative error
+            if (!err || Object.keys(err).length === 0) {
+              console.log('Empty error object received, creating fallback error');
+              const fallbackError = new Error('Transaction failed with unknown error. Please check your wallet and try again.');
+              fallbackError.name = 'UnknownTransactionError';
+              throw fallbackError;
+            }
+            
             // Only fall back to wagmi for non-user-rejection errors
             console.log('Falling back to wagmi sendTransaction for non-rejection error...');
             try {
@@ -2070,9 +2095,25 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
                 gas: normalizedResult.gas ? BigInt(normalizedResult.gas) : undefined,
               });
             } catch (wagmiErr: any) {
-              console.error('Error with wagmi fallback:', wagmiErr);
+              console.error('Error with wagmi fallback:', {
+                errorObject: wagmiErr,
+                errorMessage: wagmiErr?.message,
+                errorCode: wagmiErr?.code,
+                errorType: typeof wagmiErr,
+                errorStringified: JSON.stringify(wagmiErr, Object.getOwnPropertyNames(wagmiErr))
+              });
+              
               // If wagmi also fails, throw the original error or the wagmi error if it's more informative
-              throw wagmiErr?.message ? wagmiErr : err;
+              if (wagmiErr?.message) {
+                throw wagmiErr;
+              } else if (err?.message) {
+                throw err;
+              } else {
+                // Create a fallback error if both are empty
+                const fallbackError = new Error('Transaction failed with unknown error. Please check your wallet and try again.');
+                fallbackError.name = 'UnknownTransactionError';
+                throw fallbackError;
+              }
             }
           }
         } else {
@@ -2100,6 +2141,7 @@ ${!hasWallet ? `[Connect your wallet](#) to unlock the full AI portfolio experie
             if (c.includes('base')) return 'base';
             if (c.includes('polygon')) return 'polygon';
             if (c.includes('avalanche')) return 'avalanche';
+            if (c.includes('bsc')) return 'bsc'; // Added BSC support
             return '';
           };
           const normalizedChain = normalizeChain(chain);
@@ -2168,6 +2210,7 @@ You can check the status on ${
   normalizedChain === 'base' ? '[Basescan]' :
   normalizedChain === 'polygon' ? '[Polygonscan]' :
   normalizedChain === 'avalanche' ? '[Snowtrace]' :
+  normalizedChain === 'bsc' ? '[BscScan]' : // Added BSC support
   '[the block explorer]'
 }(${
   normalizedChain === 'ethereum' ? `https://etherscan.io/tx/${tx}` : 
@@ -2176,6 +2219,7 @@ You can check the status on ${
   normalizedChain === 'base' ? `https://basescan.org/tx/${tx}` :
   normalizedChain === 'polygon' ? `https://polygonscan.com/tx/${tx}` :
   normalizedChain === 'avalanche' ? `https://snowtrace.io/tx/${tx}` :
+  normalizedChain === 'bsc' ? `https://bscscan.com/tx/${tx}` : // Added BSC support
   `#`
 })
 
@@ -2440,19 +2484,20 @@ If the issue persists:
 
       
       // Check if we need to handle token allowances (allowance-holder approach)
-      // Only for non-ETH tokens and when we have a valid contract address
-      const isEthSwap = tokenIn === 'ETH' || tokenIn === 'ETHEREUM' || 
-                       sellTokenInfo.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+      // Only for non-native tokens and when we have a valid contract address
+      const isNativeToken = tokenIn === 'ETH' || tokenIn === 'ETHEREUM' || 
+                           tokenIn === 'BNB' || tokenIn === 'BSC' ||
+                           sellTokenInfo.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
       
       console.log('Approval check:', {
         tokenIn,
-        isEthSwap,
+        isNativeToken,
         sellTokenAddress: sellTokenInfo.address,
         normalizedResultTo: normalizedResult.to,
-        willSkipApproval: isEthSwap || !normalizedResult.to || normalizedResult.to.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        willSkipApproval: isNativeToken || !normalizedResult.to || normalizedResult.to.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
       });
       
-      if (!isEthSwap && normalizedResult.to && 
+      if (!isNativeToken && normalizedResult.to && 
           normalizedResult.to.toLowerCase() !== '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
         try {
           updateMessage(
@@ -2997,6 +3042,8 @@ Just let me know what you'd prefer!`);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+
+
   return (
     <Card className="w-full h-[calc(100vh-120px)] sm:h-[calc(100vh-180px)] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6">
@@ -3167,6 +3214,7 @@ Just let me know what you'd prefer!`);
             onSuggestionClick={handleSuggestionClick}
             visibleSuggestions={visibleSuggestions}
             onDismissSuggestion={handleDismissSuggestion}
+            caipNetwork={caipNetwork}
           />
         )}
         
@@ -3175,7 +3223,7 @@ Just let me know what you'd prefer!`);
             <div className="flex-1 relative">
               <Textarea
                 {...register('message', { required: true })}
-                placeholder="Try: Swap 100 USDC to ETH..."
+                placeholder={`Try: Swap 100 USDC to ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}...`}
                 className="min-h-[48px] md:min-h-[50px] flex-1 resize-none pr-12 md:pr-4 text-base md:text-sm rounded-xl"
                 disabled={isProcessing}
                 onKeyDown={(e) => {
@@ -3272,7 +3320,7 @@ Just let me know what you'd prefer!`);
               variant="outline" 
               size="sm"
               onClick={() => {
-                const priceText = 'What\'s the price of $ETH?';
+                const priceText = `What's the price of $${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}?`;
                 setValue('message', priceText, { shouldValidate: true });
                 const textarea = document.querySelector('textarea');
                 if (textarea) {
@@ -3288,7 +3336,7 @@ Just let me know what you'd prefer!`);
               variant="outline" 
               size="sm"
               onClick={() => {
-                const swapText = 'Swap 100 USDT to ETH';
+                const swapText = `Swap 100 USDT to ${getNativeTokenSymbol(caipNetwork?.id ? (extractChainIdFromCAIP(caipNetwork.id) ?? 1) : 1)}`;
                 setValue('message', swapText, { shouldValidate: true });
                 const textarea = document.querySelector('textarea');
                 if (textarea) {

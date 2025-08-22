@@ -65,6 +65,14 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
     aliases: ['avax', 'avalanche c-chain', 'avalanche mainnet'],
     rpcUrls: ['https://api.avax.network/ext/bc/C/rpc'],
     blockExplorer: 'https://snowtrace.io'
+  },
+  bsc: {
+    id: 56,
+    name: 'Binance Smart Chain',
+    symbol: 'BNB',
+    aliases: ['bsc', 'binance', 'binance smart chain', 'bnb chain'],
+    rpcUrls: ['https://bsc-dataseed1.binance.org'],
+    blockExplorer: 'https://bscscan.com'
   }
 };
 

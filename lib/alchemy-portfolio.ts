@@ -31,6 +31,7 @@ export const getAlchemyNetwork = (chainId: number): Network | null => {
     case 137: return Network.MATIC_MAINNET
     case 10: return Network.OPT_MAINNET
     case 43114: return Network.AVAX_MAINNET
+    // BSC (56) is not supported by Alchemy SDK, but we'll handle it with direct RPC calls
     default: return null
   }
 }
@@ -48,18 +49,144 @@ export const createAlchemyInstance = (chainId: number): Alchemy | null => {
   return new Alchemy(config)
 }
 
+// Direct RPC fallback for chains not supported by Alchemy (like BSC)
+const fetchTokenBalancesWithRPC = async (
+  chainId: number,
+  userAddress: string,
+  chainInfo: any
+): Promise<AlchemyTokenHolding[]> => {
+  try {
+    console.log(`Using direct RPC fallback for chain ${chainInfo.name} (${chainId})`)
+    
+    const holdings: AlchemyTokenHolding[] = []
+    
+    // Get native token balance
+    const nativeToken = getNativeToken(chainId)
+    if (nativeToken) {
+      try {
+        // Use direct RPC call for native balance
+        const response = await fetch(getRpcUrl(chainId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'eth_getBalance',
+            params: [userAddress, 'latest'],
+            id: 1
+          })
+        })
+        
+        const data = await response.json()
+        if (data.result) {
+          const balance = BigInt(data.result)
+          if (balance > 0) {
+            const balanceInEth = parseFloat(balance.toString()) / Math.pow(10, 18)
+            
+            // Try to get logo from our supported tokens list
+            const supportedNativeToken = findTokenByAddress(nativeToken.address, chainId)
+            if (supportedNativeToken && supportedNativeToken.logoURI) {
+              nativeToken.logoURI = supportedNativeToken.logoURI
+            }
+            
+            holdings.push({
+              token: nativeToken,
+              balance: balanceInEth.toFixed(6),
+              balanceRaw: balance.toString(),
+              valueUSD: 0, // Will be calculated with prices
+              chain: chainInfo.name,
+              chainId
+            })
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to get native token balance via RPC for chain ${chainId}:`, error)
+      }
+    }
+    
+    // Get ERC20 token balances using direct RPC calls
+    const tokens = getTokensForChain(chainId)
+    const batchSize = 20 // Process in batches to avoid overwhelming the RPC
+    
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const batch = tokens.slice(i, i + batchSize)
+      const batchPromises = batch.map(async (token) => {
+        try {
+          // ERC20 balanceOf call
+          const response = await fetch(getRpcUrl(chainId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'eth_call',
+              params: [{
+                to: token.address,
+                data: '0x70a08231' + '000000000000000000000000' + userAddress.slice(2) // balanceOf(address)
+              }, 'latest'],
+              id: 1
+            })
+          })
+          
+          const data = await response.json()
+          if (data.result && data.result !== '0x') {
+            const balance = BigInt(data.result)
+            if (balance > 0) {
+              const balanceInTokens = parseFloat(balance.toString()) / Math.pow(10, token.decimals)
+              
+              holdings.push({
+                token,
+                balance: balanceInTokens.toFixed(6),
+                balanceRaw: balance.toString(),
+                valueUSD: 0, // Will be calculated with prices
+                chain: chainInfo.name,
+                chainId
+              })
+            }
+          }
+        } catch (error) {
+          // Skip tokens that fail to fetch
+          console.debug(`Failed to get balance for token ${token.symbol} on chain ${chainId}:`, error)
+        }
+      })
+      
+      // Wait for batch to complete before moving to next batch
+      await Promise.all(batchPromises)
+    }
+    
+    return holdings
+  } catch (error) {
+    console.error(`Error fetching token balances via RPC for chain ${chainId}:`, error)
+    return []
+  }
+}
+
+// Get RPC URL for a specific chain
+const getRpcUrl = (chainId: number): string => {
+  const rpcUrls: Record<number, string> = {
+    56: 'https://bsc-dataseed1.binance.org', // BSC
+    137: 'https://polygon-rpc.com', // Polygon
+    42161: 'https://arb1.arbitrum.io/rpc', // Arbitrum
+    8453: 'https://mainnet.base.org', // Base
+    10: 'https://mainnet.optimism.io', // Optimism
+    43114: 'https://api.avax.network/ext/bc/C/rpc', // Avalanche
+    1: 'https://ethereum.publicnode.com', // Ethereum
+  }
+  
+  return rpcUrls[chainId] || 'https://ethereum.publicnode.com'
+}
+
 export const fetchTokenBalancesForChain = async (
   chainId: number, 
   userAddress: string
 ): Promise<AlchemyTokenHolding[]> => {
   const alchemy = createAlchemyInstance(chainId)
-  if (!alchemy) {
-    console.warn(`Alchemy not supported for chain ${chainId}`)
-    return []
-  }
-
   const chainInfo = Object.values(SUPPORTED_CHAINS).find(chain => chain.id === chainId)
   if (!chainInfo) return []
+
+  // If Alchemy is not supported for this chain (like BSC), use RPC fallback
+  if (!alchemy) {
+    console.warn(`Alchemy not supported for chain ${chainId}, using RPC fallback`)
+    return fetchTokenBalancesWithRPC(chainId, userAddress, chainInfo)
+  }
 
   try {
     console.log(`Fetching balances for chain ${chainInfo.name} (${chainId})`)
@@ -75,6 +202,7 @@ export const fetchTokenBalancesForChain = async (
       ],
       137: ['0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'], // USDC, USDT on Polygon
       10: ['0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'], // USDC, USDT on Optimism
+      56: ['0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', '0x55d398326f99059fF775485246999027B3197955'], // USDC, USDT on BSC
     }
     
     // Expanded stablecoin support across chains

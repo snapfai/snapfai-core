@@ -167,7 +167,7 @@ export function usePortfolio(shouldFetch: boolean = true): PortfolioData {
   const shouldFetchData = !!address && isConnected && shouldFetch
 
   // Define chains to fetch data from
-  const supportedChainIds = [1, 42161, 8453, 137, 10, 43114] // Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche
+  const supportedChainIds = [1, 42161, 8453, 137, 10, 43114, 56] // Ethereum, Arbitrum, Base, Polygon, Optimism, Avalanche, BSC
 
   // Fetch balances for each chain in parallel using useQueries
   const chainQueries = useQueries({

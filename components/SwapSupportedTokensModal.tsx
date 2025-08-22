@@ -15,6 +15,7 @@ interface SwapSupportedTokensModalProps {
 // Hardcoded popular tokens per chain (by symbol)
 const POPULAR_TOKENS: Record<number, string[]> = {
   1: ['ETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'WETH', 'APE', 'LINK', 'ARB', 'UNI', 'MKR', 'AAVE', 'LDO', 'CRV', 'FRAX', 'SUSHI', 'COMP', 'SNX', 'GRT', '1INCH', 'TUSD'],
+  56: ['BNB', 'WBNB', 'USDC', 'USDT', 'DAI', 'BUSD', 'CAKE', 'ADA', 'DOT', 'LINK', 'UNI', 'AAVE', 'SUSHI', 'CRV', 'FRAX', 'COMP', 'SNX', 'GRT', '1INCH', 'TUSD', 'BETH', 'BTCB'],
   42161: ['ETH', 'USDC', 'USDT', 'ARB', 'DAI', 'WETH', 'LINK', 'RDNT', 'MAGIC', 'GMX', 'UNI', 'AAVE', 'FRAX', 'LDO', 'CRV', 'SUSHI'],
   8453: ['ETH', 'USDC', 'USDbC', 'DAI', 'WETH', 'cbETH', 'rETH', 'UNI', 'AAVE', 'CRV', 'LDO', 'FRAX'],
   137: ['MATIC', 'USDC', 'USDT', 'DAI', 'WETH', 'WBTC', 'AAVE', 'QUICK', 'SUSHI', 'CRV', 'FRAX', 'UNI', 'LINK'],

@@ -1,7 +1,7 @@
 import { cookieStorage, createStorage, http } from '@wagmi/core'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { mainnet } from '@reown/appkit/networks'
-import { avalancheChain, arbitrumOneChain, baseChain, optimismChain } from './custom-networks'
+import { mainnet, polygon } from '@reown/appkit/networks'
+import { avalancheChain, arbitrumOneChain, baseChain, optimismChain, bscChain } from './custom-networks'
 
 // Get projectId from environment variable
 export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ''
@@ -17,8 +17,9 @@ export const networks = [
   avalancheChain, 
   arbitrumOneChain,
   baseChain,
-  optimismChain
-  // Removed: polygon (Rabby doesn't support)
+  optimismChain,
+  bscChain,
+  polygon // Added back for broader wallet support
   // Removed: sepoliaChain (0x doesn't support)
   // Removed: solanaMainnet (0x doesn't support)
   // Removed: bitcoin (0x doesn't support)
@@ -30,7 +31,9 @@ const customRpcUrls = {
   'eip155:43114': [{ url: 'https://api.avax.network/ext/bc/C/rpc' }],
   'eip155:42161': [{ url: 'https://arb1.arbitrum.io/rpc' }],
   'eip155:8453': [{ url: 'https://mainnet.base.org' }],
-  'eip155:10': [{ url: 'https://mainnet.optimism.io' }]
+  'eip155:10': [{ url: 'https://mainnet.optimism.io' }],
+  'eip155:56': [{ url: 'https://bsc-dataseed1.binance.org' }],
+  'eip155:137': [{ url: 'https://polygon-rpc.com' }] // Added Polygon RPC
 }
 
 // Set up the Wagmi Adapter (Config)

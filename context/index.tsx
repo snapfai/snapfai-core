@@ -3,9 +3,9 @@
 import { wagmiAdapter, projectId, networks } from '@/config'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createAppKit } from '@reown/appkit/react'
-import { mainnet, polygon } from '@reown/appkit/networks'
 import { WagmiProvider, type Config } from 'wagmi'
-import { arbitrumOneChain, baseChain, optimismChain, avalancheChain } from '@/config/custom-networks'
+import { mainnet, polygon } from '@reown/appkit/networks'
+import { arbitrumOneChain, baseChain, optimismChain, avalancheChain, bscChain } from '@/config/custom-networks'
 import { siweConfig } from '@/lib/siwe-config'
 import React, { type ReactNode } from 'react'
 
@@ -21,8 +21,8 @@ const modal = createAppKit({
   // Updated to use only wagmiAdapter since we removed Solana and Bitcoin
   adapters: [wagmiAdapter],
   projectId,
-  networks: [mainnet, arbitrumOneChain, baseChain, optimismChain, avalancheChain],
-  defaultNetwork: mainnet,
+  networks: [mainnet, arbitrumOneChain, baseChain, optimismChain, avalancheChain, bscChain, polygon], // Explicitly list all networks
+  defaultNetwork: mainnet, // Use mainnet as default
   metadata: {
     name: 'SnapFAI',
     description: 'Smart DeFi Trading Assistant',

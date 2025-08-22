@@ -53,12 +53,8 @@ export const getSwapPrice = async (params: {
     // Handle special parameter mapping
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined) {
-        // Convert takerAddress to taker for the 0x API
-        if (key === 'takerAddress') {
-          if (value) searchParams.append('taker', value.toString());
-        } 
         // Convert chainId from number to string if needed
-        else if (key === 'chainId') {
+        if (key === 'chainId') {
           searchParams.append(key, value.toString());
         }
         else {
@@ -120,12 +116,8 @@ export const getSwapQuote = async (params: {
     // Handle special parameter mapping
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined) {
-        // Convert takerAddress to taker for the 0x API
-        if (key === 'takerAddress') {
-          if (value) searchParams.append('taker', value.toString());
-        }
         // Convert chainId from number to string if needed
-        else if (key === 'chainId') {
+        if (key === 'chainId') {
           searchParams.append(key, value.toString());
         }
         else {

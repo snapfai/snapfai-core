@@ -109,4 +109,39 @@ export const optimismChain = defineChain({
   blockExplorers: {
     default: { name: 'Optimistic Etherscan', url: 'https://optimistic.etherscan.io' },
   },
+});
+
+// Define Binance Smart Chain (BSC) custom network
+export const bscChain = defineChain({
+  id: 56,
+  caipNetworkId: 'eip155:56',
+  chainNamespace: 'eip155',
+  name: 'Binance Smart Chain',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'BNB',
+    symbol: 'BNB',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://bsc-dataseed1.binance.org'],
+    },
+    public: {
+      http: [
+        'https://bsc-dataseed1.binance.org',
+        'https://bsc-dataseed2.binance.org',
+        'https://bsc-dataseed3.binance.org',
+        'https://bsc-dataseed4.binance.org'
+      ],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'BscScan', url: 'https://bscscan.com' },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      blockCreated: 15921452,
+    },
+  },
 }); 
