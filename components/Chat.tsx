@@ -25,7 +25,8 @@ import { resolveToken, getTokensForChain } from '@/lib/tokens';
 import { resolveTokenStrict } from '@/lib/token-resolver';
 import SwapSupportedTokensModal from './SwapSupportedTokensModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { analytics } from '@/lib/analytics';
+import { analytics, Analytics } from '@/lib/analytics';
+import { supabase } from '@/lib/supabase';
 
 
 // Add rehype-raw to support HTML in markdown for links
@@ -545,6 +546,45 @@ I'm here to revolutionize how you interact with decentralized finance. Think of 
       }, 2000);
       
       return () => clearTimeout(timeoutId);
+    }
+  }, [isConnected, address, caipNetwork]);
+
+  // Smart session management - create session only when wallet connects
+  useEffect(() => {
+    if (isConnected && address && caipNetwork) {
+      const manageSession = async () => {
+        try {
+          const analyticsInstance = Analytics.getInstance();
+          
+          // Check if user already has an active session today
+          const { data: existingSessions } = await supabase
+            .from('sessions')
+            .select('id, created_at')
+            .eq('user_id', (await analyticsInstance.initUser(address))?.id)
+            .gte('created_at', new Date().toISOString().split('T')[0])
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (existingSessions && existingSessions.length > 0) {
+            // Session already exists today, no need to create new one
+            // The database trigger will handle updating daily_metrics
+          } else {
+            // Create new session only if none exists today
+            const chainId = extractChainIdFromCAIP(caipNetwork.id) || 1;
+            const chainName = caipNetwork.name || 'ethereum';
+            
+            await analyticsInstance.startSession(
+              address,
+              chainId,
+              chainName
+            );
+          }
+        } catch (error) {
+          console.error('Error managing session:', error);
+        }
+      };
+      
+      manageSession();
     }
   }, [isConnected, address, caipNetwork]);
 

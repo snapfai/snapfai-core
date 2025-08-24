@@ -571,7 +571,7 @@ export class Analytics {
         console.error('❌ Error updating daily metrics via route:', text)
         return
       }
-      console.log('✅ Daily metrics updated successfully for', today)
+              // Daily metrics updated successfully
     } catch (error) {
       console.error('Error in updateDailyMetrics:', error);
     }

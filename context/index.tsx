@@ -49,20 +49,11 @@ const modal = createAppKit({
   siweConfig: siweConfig,
 })
 
-// Add SIWE event debugging
+// AppKit event handling for wallet connections
 if (typeof window !== 'undefined') {
-  // Listen for AppKit events to debug SIWE behavior
   modal.subscribeEvents((event) => {
-    console.log('🎯 AppKit Event:', event)
-    
-    // Check for specific event properties that might indicate SIWE or network changes
-    if (event.data?.event === 'CONNECT_SUCCESS') {
-      console.log('🔗 AppKit: Wallet connected')
-    } else if (event.data?.event === 'DISCONNECT_SUCCESS') {
-      console.log('👋 AppKit: Wallet disconnected')
-    } else if (event.data?.event === 'SWITCH_NETWORK') {
-      console.log('🌐 AppKit: Network switch detected')
-    }
+    // Handle wallet connection events silently
+    // Session creation is handled by the Chat component
   })
 }
 
